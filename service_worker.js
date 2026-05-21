@@ -10,50 +10,55 @@ function buildUrlFilter(pattern) {
 }
 
 async function syncRules(sites) {
-  const existingRules = await chrome.declarativeNetRequest.getDynamicRules();
-  const removeIds = existingRules.map((r) => r.id);
+  try {
+    const existingRules = await chrome.declarativeNetRequest.getDynamicRules();
+    const removeIds = existingRules.map((r) => r.id);
 
-  const addRules = [];
-  let ruleId = 1;
+    const addRules = [];
+    let ruleId = 1;
 
-  for (const site of sites) {
-    const filters = buildUrlFilter(site);
-    for (const urlFilter of filters) {
-      addRules.push({
-        id: ruleId++,
-        priority: 1,
-        action: {
-          type: "redirect",
-          redirect: {
-            url: chrome.runtime.getURL(
-              `blocked.html?site=${encodeURIComponent(site)}`
-            ),
+    for (const site of sites) {
+      const filters = buildUrlFilter(site);
+      for (const urlFilter of filters) {
+        addRules.push({
+          id: ruleId++,
+          priority: 1,
+          action: {
+            type: "redirect",
+            redirect: {
+              url: chrome.runtime.getURL(
+                `blocked.html?site=${encodeURIComponent(site)}`
+              ),
+            },
           },
-        },
-        condition: {
-          urlFilter,
-          resourceTypes: [
-            "main_frame",
-            "sub_frame",
-          ],
-        },
-      });
+          condition: {
+            urlFilter,
+            resourceTypes: ["main_frame", "sub_frame"],
+          },
+        });
+      }
     }
-  }
 
-  await chrome.declarativeNetRequest.updateDynamicRules({
-    removeRuleIds: removeIds,
-    addRules,
-  });
+    await chrome.declarativeNetRequest.updateDynamicRules({
+      removeRuleIds: removeIds,
+      addRules,
+    });
+  } catch (err) {
+    console.error("[BlockSites] syncRules failed:", err);
+  }
 }
 
 chrome.runtime.onInstalled.addListener(async () => {
-  const data = await chrome.storage.sync.get(STORAGE_KEY);
-  if (!data[STORAGE_KEY]) {
-    await chrome.storage.sync.set({ [STORAGE_KEY]: [] });
+  try {
+    const data = await chrome.storage.sync.get(STORAGE_KEY);
+    if (!data[STORAGE_KEY]) {
+      await chrome.storage.sync.set({ [STORAGE_KEY]: [] });
+    }
+    const sites = data[STORAGE_KEY] || [];
+    await syncRules(sites);
+  } catch (err) {
+    console.error("[BlockSites] onInstalled setup failed:", err);
   }
-  const sites = data[STORAGE_KEY] || [];
-  await syncRules(sites);
 });
 
 let syncTimer = null;
