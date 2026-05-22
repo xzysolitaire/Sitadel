@@ -9,7 +9,8 @@ function buildUrlFilter(pattern) {
   return [`*://${pattern}/*`, `*://www.${pattern}/*`];
 }
 
-async function syncRules(sites) {
+// entries: Array<{site: string, blockedAt: number}>
+async function syncRules(entries) {
   try {
     const existingRules = await chrome.declarativeNetRequest.getDynamicRules();
     const removeIds = existingRules.map((r) => r.id);
@@ -17,7 +18,7 @@ async function syncRules(sites) {
     const addRules = [];
     let ruleId = 1;
 
-    for (const site of sites) {
+    for (const { site } of entries) {
       const filters = buildUrlFilter(site);
       for (const urlFilter of filters) {
         addRules.push({
@@ -48,14 +49,23 @@ async function syncRules(sites) {
   }
 }
 
+// Migrate legacy string[] entries to {site, blockedAt} objects.
+// Legacy entries get blockedAt:0 so they are immediately removable.
+function migrate(raw) {
+  return raw.map((entry) =>
+    typeof entry === "string" ? { site: entry, blockedAt: 0 } : entry
+  );
+}
+
 chrome.runtime.onInstalled.addListener(async () => {
   try {
     const data = await chrome.storage.sync.get(STORAGE_KEY);
-    if (!data[STORAGE_KEY]) {
-      await chrome.storage.sync.set({ [STORAGE_KEY]: [] });
+    const raw = data[STORAGE_KEY];
+    const entries = raw ? migrate(raw) : [];
+    if (!raw || entries.some((e, i) => e !== raw[i])) {
+      await chrome.storage.sync.set({ [STORAGE_KEY]: entries });
     }
-    const sites = data[STORAGE_KEY] || [];
-    await syncRules(sites);
+    await syncRules(entries);
   } catch (err) {
     console.error("[BlockSites] onInstalled setup failed:", err);
   }
@@ -69,5 +79,6 @@ chrome.storage.onChanged.addListener((changes, area) => {
       () => syncRules(changes[STORAGE_KEY].newValue || []),
       50
     );
+    // newValue is already {site, blockedAt}[] — no migration needed here
   }
 });
