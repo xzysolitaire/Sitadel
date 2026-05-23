@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BlockSites</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <div class="container">
+    <h1 class="logo">BlockSites</h1>
+    <div class="current-site">
+      <span class="label">Current site</span>
+      <span id="hostname" class="hostname">—</span>
+    </div>
+    <button id="block-btn" class="btn btn-primary" disabled>
+      Block this site
+    </button>
+    <div id="feedback" class="feedback hidden"></div>
+    <hr />
+    <button id="options-btn" class="btn btn-secondary">
+      Manage block list
+    </button>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>

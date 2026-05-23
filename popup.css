@@ -1,0 +1,106 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #ffffff;
+  color: #1a1a1a;
+  width: 280px;
+}
+
+.container {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.logo {
+  font-size: 18px;
+  font-weight: 700;
+  color: #e53e3e;
+  letter-spacing: -0.3px;
+}
+
+.current-site {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #888;
+}
+
+.hostname {
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+  word-break: break-all;
+}
+
+.btn {
+  width: 100%;
+  padding: 9px 16px;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.btn-primary {
+  background: #e53e3e;
+  color: #fff;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: #c53030;
+}
+
+.btn-secondary {
+  background: #f0f0f0;
+  color: #333;
+}
+
+.btn-secondary:hover {
+  background: #e0e0e0;
+}
+
+hr {
+  border: none;
+  border-top: 1px solid #eee;
+}
+
+.feedback {
+  font-size: 13px;
+  padding: 6px 10px;
+  border-radius: 5px;
+  text-align: center;
+}
+
+.feedback.success {
+  background: #f0fff4;
+  color: #276749;
+}
+
+.feedback.error {
+  background: #fff5f5;
+  color: #c53030;
+}
+
+.hidden {
+  display: none;
+}
