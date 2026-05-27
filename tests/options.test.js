@@ -8,6 +8,7 @@ const OPTIONS_DOM = `
     <li id="empty-state" style="display:none"></li>
   </ul>
   <span id="count">0</span>
+  <input type="checkbox" id="clear-history-toggle" />
 `;
 
 // ─── pure helpers (exported) ──────────────────────────────────────────────────
@@ -176,5 +177,39 @@ describe('removeSite', () => {
     expect(chrome.storage.sync.set).toHaveBeenCalledWith({
       blockedSites: [LOCKED_ENTRY],
     });
+  });
+});
+
+// ─── clearHistory toggle ──────────────────────────────────────────────────────
+
+describe('clearHistory toggle', () => {
+  beforeEach(async () => {
+    document.body.innerHTML = OPTIONS_DOM;
+    chrome.storage.sync.get.mockResolvedValue({ blockedSites: [], clearHistory: true });
+    jest.resetModules();
+    require('../options');
+    await flushPromises();
+  });
+
+  test('checkbox is checked when clearHistory is true', () => {
+    expect(document.getElementById('clear-history-toggle').checked).toBe(true);
+  });
+
+  test('checkbox is unchecked when clearHistory is false', async () => {
+    document.body.innerHTML = OPTIONS_DOM;
+    chrome.storage.sync.get.mockResolvedValue({ blockedSites: [], clearHistory: false });
+    jest.resetModules();
+    require('../options');
+    await flushPromises();
+
+    expect(document.getElementById('clear-history-toggle').checked).toBe(false);
+  });
+
+  test('clicking checkbox saves new value to storage', () => {
+    const toggle = document.getElementById('clear-history-toggle');
+    toggle.checked = false;
+    toggle.dispatchEvent(new Event('change'));
+
+    expect(chrome.storage.sync.set).toHaveBeenCalledWith({ clearHistory: false });
   });
 });

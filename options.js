@@ -7,6 +7,7 @@ const addError = document.getElementById("add-error");
 const siteList = document.getElementById("site-list");
 const emptyState = document.getElementById("empty-state");
 const countEl = document.getElementById("count");
+const clearHistoryToggle = document.getElementById("clear-history-toggle");
 
 function normalise(raw) {
   let s = raw.trim().toLowerCase();
@@ -103,10 +104,19 @@ async function removeSite(site) {
   renderList(updated);
 }
 
+async function loadSettings() {
+  const { clearHistory = true } = await chrome.storage.sync.get("clearHistory");
+  clearHistoryToggle.checked = clearHistory;
+}
+
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area === "sync" && changes[STORAGE_KEY]) {
     renderList(changes[STORAGE_KEY].newValue || []);
   }
+});
+
+clearHistoryToggle.addEventListener("change", () => {
+  chrome.storage.sync.set({ clearHistory: clearHistoryToggle.checked });
 });
 
 addBtn.addEventListener("click", addSite);
@@ -115,6 +125,7 @@ urlInput.addEventListener("keydown", (e) => {
 });
 
 load();
+loadSettings();
 
 if (typeof module !== "undefined") {
   module.exports = { normalise, daysLeft };

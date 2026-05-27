@@ -7,7 +7,7 @@ beforeEach(() => {
   global.chrome = {
     storage: {
       sync: {
-        get: jest.fn(),
+        get: jest.fn().mockResolvedValue({}),
         set: jest.fn().mockResolvedValue(undefined),
       },
       onChanged: {
@@ -27,6 +27,10 @@ beforeEach(() => {
     },
     tabs: {
       query: jest.fn(),
+    },
+    history: {
+      search: jest.fn().mockResolvedValue([]),
+      deleteUrl: jest.fn().mockResolvedValue(undefined),
     },
   };
 });

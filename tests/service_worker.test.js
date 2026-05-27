@@ -1,10 +1,10 @@
 const flushPromises = () => new Promise((r) => setImmediate(r));
 
-let buildUrlFilter, syncRules, migrate;
+let buildUrlFilter, syncRules, migrate, clearHistoryForSite;
 
 beforeEach(() => {
   jest.resetModules();
-  ({ buildUrlFilter, syncRules, migrate } = require('../service_worker'));
+  ({ buildUrlFilter, syncRules, migrate, clearHistoryForSite } = require('../service_worker'));
 });
 
 // ─── buildUrlFilter ───────────────────────────────────────────────────────────
@@ -186,5 +186,178 @@ describe('storage.onChanged debounce', () => {
 
     jest.advanceTimersByTime(100);
     expect(chrome.declarativeNetRequest.getDynamicRules).not.toHaveBeenCalled();
+  });
+});
+
+// ─── clearHistoryForSite ──────────────────────────────────────────────────────
+
+describe('clearHistoryForSite', () => {
+  test('deletes matching domain URLs and ignores non-matching ones', async () => {
+    chrome.history.search.mockResolvedValue([
+      { url: 'https://facebook.com/login' },
+      { url: 'https://www.facebook.com/feed' },
+      { url: 'https://m.facebook.com/home' },
+      { url: 'https://notfacebook.com' },
+    ]);
+
+    await clearHistoryForSite('facebook.com');
+
+    expect(chrome.history.deleteUrl).toHaveBeenCalledWith({ url: 'https://facebook.com/login' });
+    expect(chrome.history.deleteUrl).toHaveBeenCalledWith({ url: 'https://www.facebook.com/feed' });
+    expect(chrome.history.deleteUrl).toHaveBeenCalledWith({ url: 'https://m.facebook.com/home' });
+    expect(chrome.history.deleteUrl).not.toHaveBeenCalledWith({ url: 'https://notfacebook.com' });
+    expect(chrome.history.deleteUrl).toHaveBeenCalledTimes(3);
+  });
+
+  test('only deletes URLs matching the path prefix', async () => {
+    chrome.history.search.mockResolvedValue([
+      { url: 'https://reddit.com/r/news/article' },
+      { url: 'https://reddit.com/r/other' },
+    ]);
+
+    await clearHistoryForSite('reddit.com/r/news');
+
+    expect(chrome.history.deleteUrl).toHaveBeenCalledWith({ url: 'https://reddit.com/r/news/article' });
+    expect(chrome.history.deleteUrl).toHaveBeenCalledTimes(1);
+  });
+
+  test('makes no deleteUrl calls when history search returns empty', async () => {
+    chrome.history.search.mockResolvedValue([]);
+
+    await clearHistoryForSite('facebook.com');
+
+    expect(chrome.history.deleteUrl).not.toHaveBeenCalled();
+  });
+
+  test('does not throw on unparseable URLs', async () => {
+    chrome.history.search.mockResolvedValue([{ url: 'not-a-valid-url' }]);
+
+    await expect(clearHistoryForSite('facebook.com')).resolves.toBeUndefined();
+    expect(chrome.history.deleteUrl).not.toHaveBeenCalled();
+  });
+
+  test('deletes all results when 1000 matching URLs are returned', async () => {
+    const urls = Array.from({ length: 1000 }, (_, i) => ({
+      url: `https://facebook.com/page/${i}`,
+    }));
+    chrome.history.search.mockResolvedValue(urls);
+
+    await clearHistoryForSite('facebook.com');
+
+    expect(chrome.history.deleteUrl).toHaveBeenCalledTimes(1000);
+  });
+});
+
+// ─── onInstalled — history clearing ──────────────────────────────────────────
+
+describe('onInstalled history clearing', () => {
+  function getListener() {
+    return chrome.runtime.onInstalled.addListener.mock.calls[0][0];
+  }
+
+  test('clears history for all blocked sites on install when clearHistory is true', async () => {
+    const entries = [
+      { site: 'facebook.com', blockedAt: 999 },
+      { site: 'twitter.com', blockedAt: 999 },
+    ];
+    chrome.storage.sync.get.mockResolvedValue({ blockedSites: entries, clearHistory: true });
+
+    await getListener()();
+
+    expect(chrome.history.search).toHaveBeenCalledWith(
+      expect.objectContaining({ text: 'facebook.com' })
+    );
+    expect(chrome.history.search).toHaveBeenCalledWith(
+      expect.objectContaining({ text: 'twitter.com' })
+    );
+  });
+
+  test('does not clear history when clearHistory setting is false', async () => {
+    const entries = [{ site: 'facebook.com', blockedAt: 999 }];
+    chrome.storage.sync.get.mockResolvedValue({ blockedSites: entries, clearHistory: false });
+
+    await getListener()();
+
+    expect(chrome.history.search).not.toHaveBeenCalled();
+  });
+
+  test('skips history clearing when block list is empty', async () => {
+    chrome.storage.sync.get.mockResolvedValue({ blockedSites: [] });
+
+    await getListener()();
+
+    expect(chrome.history.search).not.toHaveBeenCalled();
+  });
+});
+
+// ─── storage.onChanged — history clearing ────────────────────────────────────
+
+describe('storage.onChanged history clearing', () => {
+  function getListener() {
+    return chrome.storage.onChanged.addListener.mock.calls[0][0];
+  }
+
+  test('calls clearHistoryForSite for each newly added site', async () => {
+    chrome.storage.sync.get.mockResolvedValue({ clearHistory: true });
+
+    getListener()(
+      {
+        blockedSites: {
+          oldValue: [{ site: 'existing.com', blockedAt: 0 }],
+          newValue: [
+            { site: 'existing.com', blockedAt: 0 },
+            { site: 'new1.com', blockedAt: 100 },
+            { site: 'new2.com', blockedAt: 200 },
+          ],
+        },
+      },
+      'sync'
+    );
+
+    await flushPromises();
+
+    expect(chrome.history.search).toHaveBeenCalledWith(
+      expect.objectContaining({ text: 'new1.com' })
+    );
+    expect(chrome.history.search).toHaveBeenCalledWith(
+      expect.objectContaining({ text: 'new2.com' })
+    );
+    expect(chrome.history.search).not.toHaveBeenCalledWith(
+      expect.objectContaining({ text: 'existing.com' })
+    );
+  });
+
+  test('does not clear history when no new sites are added', async () => {
+    getListener()(
+      {
+        blockedSites: {
+          oldValue: [{ site: 'facebook.com', blockedAt: 0 }],
+          newValue: [{ site: 'facebook.com', blockedAt: 0 }],
+        },
+      },
+      'sync'
+    );
+
+    await flushPromises();
+
+    expect(chrome.history.search).not.toHaveBeenCalled();
+  });
+
+  test('does not clear history when clearHistory setting is false', async () => {
+    chrome.storage.sync.get.mockResolvedValue({ clearHistory: false });
+
+    getListener()(
+      {
+        blockedSites: {
+          oldValue: [],
+          newValue: [{ site: 'facebook.com', blockedAt: 0 }],
+        },
+      },
+      'sync'
+    );
+
+    await flushPromises();
+
+    expect(chrome.history.search).not.toHaveBeenCalled();
   });
 });

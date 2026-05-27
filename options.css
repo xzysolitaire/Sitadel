@@ -98,6 +98,42 @@ input[type="text"]:focus {
   display: none;
 }
 
+/* Settings section */
+.settings-section {
+  background: #fff;
+  border-radius: 10px;
+  padding: 20px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.07);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.settings-section h2 {
+  font-size: 16px;
+  font-weight: 700;
+  color: #333;
+}
+
+.toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.toggle-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #222;
+}
+
+.toggle-hint {
+  font-size: 12px;
+  color: #888;
+  padding-left: 26px;
+}
+
 /* List section */
 .list-section {
   display: flex;
