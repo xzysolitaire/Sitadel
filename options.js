@@ -115,3 +115,7 @@ urlInput.addEventListener("keydown", (e) => {
 });
 
 load();
+
+if (typeof module !== "undefined") {
+  module.exports = { normalise, daysLeft };
+}

@@ -82,3 +82,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
     // newValue is already {site, blockedAt}[] — no migration needed here
   }
 });
+
+if (typeof module !== "undefined") {
+  module.exports = { buildUrlFilter, syncRules, migrate };
+}
