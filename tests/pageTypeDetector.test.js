@@ -22,12 +22,12 @@ describe('detectPageType — YouTube', () => {
     expect(detectPageType('https://www.youtube.com/watch?v=abc123&t=30s', emptyDoc())).toBe('youtube');
   });
 
-  test('does not match YouTube Shorts (not in pattern — falls through)', () => {
-    expect(detectPageType('https://www.youtube.com/shorts/abc123', emptyDoc())).toBe('article');
+  test('detects YouTube Shorts URL', () => {
+    expect(detectPageType('https://www.youtube.com/shorts/abc123', emptyDoc())).toBe('youtube');
   });
 
-  test('does not match YouTube embed URL', () => {
-    expect(detectPageType('https://www.youtube.com/embed/abc123', emptyDoc())).toBe('article');
+  test('detects YouTube embed URL', () => {
+    expect(detectPageType('https://www.youtube.com/embed/abc123', emptyDoc())).toBe('youtube');
   });
 
   test('does not match unrelated site containing "youtube" in domain', () => {
@@ -57,6 +57,11 @@ describe('detectPageType — PDF', () => {
 
   test('detects PDF via <iframe src ending in .pdf>', () => {
     const doc = makeDoc('<iframe src="/file.pdf"></iframe>');
+    expect(detectPageType('https://example.com/viewer', doc)).toBe('pdf');
+  });
+
+  test('detects PDF via <iframe src with .pdf before query params>', () => {
+    const doc = makeDoc('<iframe src="/viewer?file=doc.pdf&page=1"></iframe>');
     expect(detectPageType('https://example.com/viewer', doc)).toBe('pdf');
   });
 
@@ -91,8 +96,18 @@ describe('detectPageType — video (non-YouTube)', () => {
     expect(detectPageType('https://vimeo.com/123', doc)).toBe('video');
   });
 
-  test('detects autoplay muted decorative <video> as video type', () => {
+  test('skips autoplay+muted+loop video with no controls (decorative)', () => {
     const doc = makeDoc('<video autoplay muted loop></video>');
+    expect(detectPageType('https://example.com', doc)).toBe('article');
+  });
+
+  test('counts autoplay video that has controls as content video', () => {
+    const doc = makeDoc('<video autoplay muted loop controls></video>');
+    expect(detectPageType('https://example.com', doc)).toBe('video');
+  });
+
+  test('counts non-autoplay video as content video', () => {
+    const doc = makeDoc('<video muted loop></video>');
     expect(detectPageType('https://example.com', doc)).toBe('video');
   });
 

@@ -2,7 +2,7 @@ const flushPromises = () => new Promise((r) => setImmediate(r));
 
 const POPUP_DOM = `
   <span id="hostname">—</span>
-  <button id="block-btn" disabled>Block this site</button>
+  <button id="block-btn" disabled><span class="btn-label">Block this site</span></button>
   <button id="options-btn">Options</button>
   <div id="feedback" class="feedback hidden"></div>
 `;

@@ -2,6 +2,7 @@ const STORAGE_KEY = "blockedSites";
 
 const hostnameEl = document.getElementById("hostname");
 const blockBtn = document.getElementById("block-btn");
+const blockLabel = blockBtn.querySelector(".btn-label");
 const optionsBtn = document.getElementById("options-btn");
 const feedbackEl = document.getElementById("feedback");
 
@@ -28,7 +29,7 @@ async function init() {
 
     const { [STORAGE_KEY]: entries = [] } = await chrome.storage.sync.get(STORAGE_KEY);
     if (entries.some((e) => e.site === currentHostname)) {
-      blockBtn.textContent = "Already blocked";
+      blockLabel.textContent = "Already blocked";
       blockBtn.disabled = true;
     }
   } catch {
@@ -45,7 +46,7 @@ blockBtn.addEventListener("click", async () => {
   }
   const newEntry = { site: currentHostname, blockedAt: Date.now() };
   await chrome.storage.sync.set({ [STORAGE_KEY]: [...entries, newEntry] });
-  blockBtn.textContent = "Already blocked";
+  blockLabel.textContent = "Already blocked";
   blockBtn.disabled = true;
   showFeedback(`Blocked ${currentHostname}`, "success");
 });
