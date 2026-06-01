@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "BlockSites",
+  "name": "Sitadel",
   "version": "1.0",
-  "description": "Block distracting websites and stay focused.",
+  "description": "Manage your web — block distracting sites and save the ones that matter.",
   "permissions": [
     "declarativeNetRequest",
     "declarativeNetRequestWithHostAccess",

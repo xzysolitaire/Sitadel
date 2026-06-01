@@ -1,4 +1,4 @@
-# BlockSites
+# Sitadel
 
 A lightweight Chrome extension that lets you block distracting websites. Add any site to your block list and every future visit is redirected to a friendly blocked page instead.
 
@@ -15,13 +15,13 @@ A lightweight Chrome extension that lets you block distracting websites. Add any
 
 ## Installation
 
-BlockSites is not on the Chrome Web Store — install it as an unpacked extension in Developer Mode.
+Sitadel is not on the Chrome Web Store — install it as an unpacked extension in Developer Mode.
 
 1. **Download the source**
 
    Clone this repo or download and unzip it:
    ```bash
-   git clone https://github.com/xzysolitaire/BlockSites.git
+   git clone https://github.com/xzysolitaire/Sitadel.git
    ```
 
 2. **Open Chrome Extensions**
@@ -34,17 +34,17 @@ BlockSites is not on the Chrome Web Store — install it as an unpacked extensio
 
 4. **Load the extension**
 
-   Click **Load unpacked**, then select the `BlockSites` folder.
+   Click **Load unpacked**, then select the `Sitadel` folder.
 
 5. **Pin it (optional)**
 
-   Click the puzzle-piece icon in the Chrome toolbar → find **BlockSites** → click the pin icon so the popup is always one click away.
+   Click the puzzle-piece icon in the Chrome toolbar → find **Sitadel** → click the pin icon so the popup is always one click away.
 
 ## Usage
 
 | What you want to do | How |
 |---|---|
-| Block the site you're on | Click the BlockSites toolbar icon → **Block this site** |
+| Block the site you're on | Click the Sitadel toolbar icon → **Block this site** |
 | Block a site manually | Click **Manage block list** → type a domain or path → **Add** |
 | Unblock a site | Click **Manage block list** → click **Remove** next to the entry |
 

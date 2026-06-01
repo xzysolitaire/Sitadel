@@ -45,7 +45,7 @@ async function syncRules(entries) {
       addRules,
     });
   } catch (err) {
-    console.error("[BlockSites] syncRules failed:", err);
+    console.error("[Sitadel] syncRules failed:", err);
   }
 }
 
@@ -91,7 +91,7 @@ chrome.runtime.onInstalled.addListener(async () => {
       }
     }
   } catch (err) {
-    console.error("[BlockSites] onInstalled setup failed:", err);
+    console.error("[Sitadel] onInstalled setup failed:", err);
   }
 });
 
