@@ -11,7 +11,7 @@ A lightweight Chrome extension that lets you block distracting websites. Add any
 
 ### Popup
 
-> Load the extension first, then replace this line with a screenshot: `![Popup screenshot](docs/popup.png)`
+<img width="283" height="153" alt="Screenshot 2026-06-04 at 12 44 19 AM" src="https://github.com/user-attachments/assets/b4e95c7c-2054-4c3f-b092-5695d674d4d4" />
 
 ## Installation
 
