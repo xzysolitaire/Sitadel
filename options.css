@@ -266,6 +266,10 @@ input[type="text"]:focus {
   gap: 16px;
 }
 
+.tab-panel.hidden {
+  display: none;
+}
+
 /* Saved toolbar */
 .saved-toolbar {
   display: flex;

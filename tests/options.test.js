@@ -206,6 +206,36 @@ describe('removeSite', () => {
   });
 });
 
+// ─── tab switching ───────────────────────────────────────────────────────────
+
+describe('tab switching', () => {
+  beforeEach(async () => {
+    document.body.innerHTML = OPTIONS_DOM;
+    chrome.storage.sync.get.mockResolvedValue({ blockedSites: [], savedPages: [] });
+    jest.resetModules();
+    require('../options');
+    await flushPromises();
+  });
+
+  test('saved tab is active and blocked tab is hidden on load', () => {
+    expect(document.getElementById('tab-saved').classList.contains('hidden')).toBe(false);
+    expect(document.getElementById('tab-blocked').classList.contains('hidden')).toBe(true);
+  });
+
+  test('clicking Blocked tab hides saved panel and shows blocked panel', () => {
+    document.querySelector('.seg-btn[data-tab="blocked"]').click();
+    expect(document.getElementById('tab-blocked').classList.contains('hidden')).toBe(false);
+    expect(document.getElementById('tab-saved').classList.contains('hidden')).toBe(true);
+  });
+
+  test('clicking Saved tab after Blocked restores saved panel', () => {
+    document.querySelector('.seg-btn[data-tab="blocked"]').click();
+    document.querySelector('.seg-btn[data-tab="saved"]').click();
+    expect(document.getElementById('tab-saved').classList.contains('hidden')).toBe(false);
+    expect(document.getElementById('tab-blocked').classList.contains('hidden')).toBe(true);
+  });
+});
+
 // ─── humaniseSite ────────────────────────────────────────────────────────────
 
 describe('humaniseSite', () => {
