@@ -10,39 +10,79 @@
   <div class="page">
     <header>
       <h1>Sitadel</h1>
-      <p class="subtitle">Manage your blocked sites</p>
+      <p class="subtitle">Manage your sites</p>
     </header>
 
-    <section class="add-section">
-      <label for="url-input">Add a site to block</label>
-      <div class="input-row">
-        <input
-          id="url-input"
-          type="text"
-          placeholder="e.g. facebook.com or reddit.com/r/news"
-          autocomplete="off"
-          spellcheck="false"
-        />
-        <button id="add-btn" class="btn btn-primary">Add</button>
+    <div class="segmented">
+      <button class="seg-btn seg-btn--active" data-tab="saved">Saved</button>
+      <button class="seg-btn" data-tab="blocked">Blocked</button>
+    </div>
+
+    <div id="tab-saved" class="tab-panel">
+      <div class="saved-toolbar">
+        <div class="toolbar-controls">
+          <span class="toolbar-label">Site</span>
+          <select id="filter-site-select">
+            <option value="">All sites</option>
+          </select>
+          <span class="toolbar-label">Sort</span>
+          <select id="sort-select">
+            <option value="savedAt">Newest first</option>
+            <option value="name">Name A–Z</option>
+          </select>
+        </div>
       </div>
-      <div id="add-error" class="error-msg hidden"></div>
-    </section>
 
-    <section class="settings-section">
-      <h2>Settings</h2>
-      <label class="toggle-row">
-        <input type="checkbox" id="clear-history-toggle" />
-        <span class="toggle-label">Remove blocked sites from browsing history</span>
-      </label>
-      <p class="toggle-hint">Prevents blocked site URLs from appearing in address bar suggestions.</p>
-    </section>
+      <div class="chips" id="type-chips">
+        <button class="chip chip--active" data-type="">All types</button>
+        <button class="chip" data-type="article">Article</button>
+        <button class="chip" data-type="youtube">YouTube</button>
+        <button class="chip" data-type="pdf">PDF</button>
+        <button class="chip" data-type="video">Video</button>
+      </div>
 
-    <section class="list-section">
-      <h2>Blocked sites <span id="count" class="count">0</span></h2>
-      <ul id="site-list" class="site-list">
-        <li id="empty-state" class="empty-state">No sites blocked yet.</li>
+      <div class="saved-list-header">
+        <span class="saved-list-title">Saved pages</span>
+        <span id="saved-count" class="count count--blue">0</span>
+      </div>
+
+      <ul id="saved-list" class="saved-list">
+        <li id="saved-empty-state" class="empty-state">No pages saved yet.</li>
       </ul>
-    </section>
+    </div>
+
+    <div id="tab-blocked" class="tab-panel hidden">
+      <section class="add-section">
+        <label for="url-input">Add a site to block</label>
+        <div class="input-row">
+          <input
+            id="url-input"
+            type="text"
+            placeholder="e.g. facebook.com or reddit.com/r/news"
+            autocomplete="off"
+            spellcheck="false"
+          />
+          <button id="add-btn" class="btn btn-primary">Add</button>
+        </div>
+        <div id="add-error" class="error-msg hidden"></div>
+      </section>
+
+      <section class="settings-section">
+        <h2>Settings</h2>
+        <label class="toggle-row">
+          <input type="checkbox" id="clear-history-toggle" />
+          <span class="toggle-label">Remove blocked sites from browsing history</span>
+        </label>
+        <p class="toggle-hint">Prevents blocked site URLs from appearing in address bar suggestions.</p>
+      </section>
+
+      <section class="list-section">
+        <h2>Blocked sites <span id="count" class="count">0</span></h2>
+        <ul id="site-list" class="site-list">
+          <li id="empty-state" class="empty-state">No sites blocked yet.</li>
+        </ul>
+      </section>
+    </div>
   </div>
   <script src="options.js"></script>
 </body>
