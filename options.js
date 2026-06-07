@@ -1,4 +1,5 @@
 const STORAGE_KEY = "blockedSites";
+const SAVED_KEY = "savedPages";
 const LOCK_MS = 7 * 24 * 60 * 60 * 1000;
 
 const urlInput = document.getElementById("url-input");
@@ -8,6 +9,14 @@ const siteList = document.getElementById("site-list");
 const emptyState = document.getElementById("empty-state");
 const countEl = document.getElementById("count");
 const clearHistoryToggle = document.getElementById("clear-history-toggle");
+
+const savedList = document.getElementById("saved-list");
+const savedEmptyState = document.getElementById("saved-empty-state");
+const savedCountEl = document.getElementById("saved-count");
+const sortSelect = document.getElementById("sort-select");
+const filterSiteSelect = document.getElementById("filter-site-select");
+
+let savedEntries = [];
 
 function normalise(raw) {
   let s = raw.trim().toLowerCase();
@@ -20,6 +29,24 @@ function normalise(raw) {
 function daysLeft(blockedAt) {
   const ms = blockedAt + LOCK_MS - Date.now();
   return ms > 0 ? Math.ceil(ms / (24 * 60 * 60 * 1000)) : 0;
+}
+
+function humaniseSite(site) {
+  const name = site.split(".")[0];
+  return name.charAt(0).toUpperCase() + name.slice(1);
+}
+
+function formatDate(ts) {
+  return new Date(ts).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function activeTypeFilter() {
+  const active = document.querySelector(".chip.chip--active");
+  return active ? active.dataset.type : "";
 }
 
 function showError(msg) {
@@ -62,6 +89,112 @@ function renderList(entries) {
     li.appendChild(removeBtn);
     siteList.insertBefore(li, emptyState);
   }
+}
+
+function renderSavedList(entries) {
+  const siteFilter = filterSiteSelect.value;
+  const typeFilter = activeTypeFilter();
+  const sort = sortSelect.value;
+
+  let filtered = entries;
+  if (siteFilter) filtered = filtered.filter((p) => p.site === siteFilter);
+  if (typeFilter) filtered = filtered.filter((p) => p.pageType === typeFilter);
+
+  if (sort === "name") {
+    filtered = [...filtered].sort((a, b) =>
+      humaniseSite(a.site).localeCompare(humaniseSite(b.site))
+    );
+  } else {
+    filtered = [...filtered].sort((a, b) => b.savedAt - a.savedAt);
+  }
+
+  savedList.querySelectorAll(".saved-entry").forEach((el) => el.remove());
+  savedCountEl.textContent = filtered.length;
+
+  if (filtered.length === 0) {
+    const msg = entries.length === 0 || (!siteFilter && !typeFilter)
+      ? "No pages saved yet."
+      : "No pages match the current filters.";
+    savedEmptyState.textContent = msg;
+    savedEmptyState.style.display = "block";
+  } else {
+    savedEmptyState.style.display = "none";
+  }
+
+  for (const entry of filtered) {
+    const li = document.createElement("li");
+    li.className = "saved-entry";
+
+    const faviconWrap = document.createElement("div");
+    faviconWrap.className = "favicon-wrap";
+    const img = document.createElement("img");
+    img.src = `https://www.google.com/s2/favicons?domain=${entry.site}&sz=32`;
+    img.alt = "";
+    faviconWrap.appendChild(img);
+
+    const link = document.createElement("a");
+    link.className = "saved-link";
+    link.href = entry.url;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+
+    const siteName = document.createElement("div");
+    siteName.className = "entry-site";
+    siteName.textContent = humaniseSite(entry.site);
+
+    let path = "";
+    try {
+      const parsed = new URL(entry.url);
+      path = parsed.pathname + parsed.search;
+    } catch { path = entry.url; }
+
+    const entryPath = document.createElement("div");
+    entryPath.className = "entry-path";
+    entryPath.textContent = path;
+
+    const meta = document.createElement("div");
+    meta.className = "entry-meta";
+    meta.textContent = `${entry.pageType} · ${formatDate(entry.savedAt)}`;
+
+    link.appendChild(siteName);
+    link.appendChild(entryPath);
+    link.appendChild(meta);
+
+    const removeBtn = document.createElement("button");
+    removeBtn.className = "remove-btn";
+    removeBtn.title = "Remove";
+    removeBtn.textContent = "×";
+    removeBtn.addEventListener("click", () => removeSavedPage(entry.url));
+
+    li.appendChild(faviconWrap);
+    li.appendChild(link);
+    li.appendChild(removeBtn);
+    savedList.insertBefore(li, savedEmptyState);
+  }
+
+  // Repopulate site filter, preserving current selection
+  const prevSite = filterSiteSelect.value;
+  const uniqueSites = [...new Set(entries.map((p) => p.site))].sort();
+  while (filterSiteSelect.options.length > 1) filterSiteSelect.remove(1);
+  for (const site of uniqueSites) {
+    const opt = document.createElement("option");
+    opt.value = site;
+    opt.textContent = humaniseSite(site);
+    filterSiteSelect.appendChild(opt);
+  }
+  filterSiteSelect.value = prevSite;
+}
+
+async function removeSavedPage(url) {
+  savedEntries = savedEntries.filter((p) => p.url !== url);
+  await chrome.storage.sync.set({ [SAVED_KEY]: savedEntries });
+  renderSavedList(savedEntries);
+}
+
+async function loadSaved() {
+  const { [SAVED_KEY]: entries = [] } = await chrome.storage.sync.get(SAVED_KEY);
+  savedEntries = entries;
+  renderSavedList(savedEntries);
 }
 
 async function load() {
@@ -109,9 +242,38 @@ async function loadSettings() {
   clearHistoryToggle.checked = clearHistory;
 }
 
+// Tab switching
+document.querySelectorAll(".seg-btn").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".seg-btn").forEach((b) =>
+      b.classList.toggle("seg-btn--active", b === btn)
+    );
+    document.querySelectorAll(".tab-panel").forEach((panel) =>
+      panel.classList.toggle("hidden", panel.id !== `tab-${btn.dataset.tab}`)
+    );
+  });
+});
+
+// Type chip switching
+document.querySelectorAll(".chip").forEach((chip) => {
+  chip.addEventListener("click", () => {
+    document.querySelectorAll(".chip").forEach((c) => c.classList.remove("chip--active"));
+    chip.classList.add("chip--active");
+    renderSavedList(savedEntries);
+  });
+});
+
+// Sort and site filter
+[sortSelect, filterSiteSelect].forEach((el) =>
+  el.addEventListener("change", () => renderSavedList(savedEntries))
+);
+
 chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === "sync" && changes[STORAGE_KEY]) {
-    renderList(changes[STORAGE_KEY].newValue || []);
+  if (area !== "sync") return;
+  if (changes[STORAGE_KEY]) renderList(changes[STORAGE_KEY].newValue || []);
+  if (changes[SAVED_KEY]) {
+    savedEntries = changes[SAVED_KEY].newValue || [];
+    renderSavedList(savedEntries);
   }
 });
 
@@ -125,8 +287,9 @@ urlInput.addEventListener("keydown", (e) => {
 });
 
 load();
+loadSaved();
 loadSettings();
 
 if (typeof module !== "undefined") {
-  module.exports = { normalise, daysLeft };
+  module.exports = { normalise, daysLeft, humaniseSite, renderSavedList, removeSavedPage };
 }
