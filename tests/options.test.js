@@ -1,14 +1,40 @@
 const flushPromises = () => new Promise((r) => setImmediate(r));
 
 const OPTIONS_DOM = `
-  <input id="url-input" />
-  <button id="add-btn">Add</button>
-  <span id="add-error" class="hidden"></span>
-  <ul id="site-list">
-    <li id="empty-state" style="display:none"></li>
-  </ul>
-  <span id="count">0</span>
-  <input type="checkbox" id="clear-history-toggle" />
+  <div class="segmented">
+    <button class="seg-btn seg-btn--active" data-tab="saved">Saved</button>
+    <button class="seg-btn" data-tab="blocked">Blocked</button>
+  </div>
+
+  <div id="tab-saved" class="tab-panel">
+    <select id="filter-site-select"><option value="">All sites</option></select>
+    <select id="sort-select">
+      <option value="savedAt">Newest first</option>
+      <option value="name">Name A-Z</option>
+    </select>
+    <div id="type-chips">
+      <button class="chip chip--active" data-type="">All types</button>
+      <button class="chip" data-type="article">Article</button>
+      <button class="chip" data-type="youtube">YouTube</button>
+      <button class="chip" data-type="pdf">PDF</button>
+      <button class="chip" data-type="video">Video</button>
+    </div>
+    <span id="saved-count">0</span>
+    <ul id="saved-list">
+      <li id="saved-empty-state" class="empty-state">No pages saved yet.</li>
+    </ul>
+  </div>
+
+  <div id="tab-blocked" class="tab-panel hidden">
+    <input id="url-input" />
+    <button id="add-btn">Add</button>
+    <span id="add-error" class="hidden"></span>
+    <ul id="site-list">
+      <li id="empty-state" style="display:none"></li>
+    </ul>
+    <span id="count">0</span>
+    <input type="checkbox" id="clear-history-toggle" />
+  </div>
 `;
 
 // ─── pure helpers (exported) ──────────────────────────────────────────────────
@@ -177,6 +203,145 @@ describe('removeSite', () => {
     expect(chrome.storage.sync.set).toHaveBeenCalledWith({
       blockedSites: [LOCKED_ENTRY],
     });
+  });
+});
+
+// ─── humaniseSite ────────────────────────────────────────────────────────────
+
+describe('humaniseSite', () => {
+  let humaniseSite;
+  beforeEach(() => {
+    document.body.innerHTML = OPTIONS_DOM;
+    chrome.storage.sync.get.mockResolvedValue({ blockedSites: [], savedPages: [] });
+    jest.resetModules();
+    ({ humaniseSite } = require('../options'));
+  });
+
+  test('capitalises the first segment of a domain', () => {
+    expect(humaniseSite('github.com')).toBe('Github');
+  });
+
+  test('works with multi-segment domains', () => {
+    expect(humaniseSite('reddit.com')).toBe('Reddit');
+  });
+
+  test('single-word hostname', () => {
+    expect(humaniseSite('localhost')).toBe('Localhost');
+  });
+});
+
+// ─── renderSavedList ──────────────────────────────────────────────────────────
+
+describe('renderSavedList', () => {
+  let renderSavedList;
+
+  const e1 = { url: 'https://github.com/foo', site: 'github.com', pageType: 'article', savedAt: 2000 };
+  const e2 = { url: 'https://arxiv.org/bar', site: 'arxiv.org', pageType: 'pdf', savedAt: 1000 };
+  const e3 = { url: 'https://youtube.com/watch?v=abc', site: 'youtube.com', pageType: 'youtube', savedAt: 3000 };
+
+  beforeEach(() => {
+    document.body.innerHTML = OPTIONS_DOM;
+    chrome.storage.sync.get.mockResolvedValue({ blockedSites: [], savedPages: [] });
+    jest.resetModules();
+    ({ renderSavedList } = require('../options'));
+  });
+
+  test('renders newest first by default', () => {
+    renderSavedList([e1, e2, e3]);
+    const names = [...document.querySelectorAll('.saved-entry .entry-site')].map((el) => el.textContent);
+    expect(names).toEqual(['Youtube', 'Github', 'Arxiv']);
+  });
+
+  test('renders alphabetically when sort is name', () => {
+    document.getElementById('sort-select').value = 'name';
+    renderSavedList([e1, e2, e3]);
+    const names = [...document.querySelectorAll('.saved-entry .entry-site')].map((el) => el.textContent);
+    expect(names).toEqual(['Arxiv', 'Github', 'Youtube']);
+  });
+
+  test('filters by site', () => {
+    const opt = document.createElement('option');
+    opt.value = 'github.com';
+    document.getElementById('filter-site-select').appendChild(opt);
+    document.getElementById('filter-site-select').value = 'github.com';
+
+    renderSavedList([e1, e2, e3]);
+    const items = document.querySelectorAll('.saved-entry');
+    expect(items.length).toBe(1);
+    expect(items[0].querySelector('.entry-site').textContent).toBe('Github');
+  });
+
+  test('filters by content type via active chip', () => {
+    document.querySelectorAll('.chip').forEach((c) => c.classList.remove('chip--active'));
+    document.querySelector('.chip[data-type="pdf"]').classList.add('chip--active');
+
+    renderSavedList([e1, e2, e3]);
+    const items = document.querySelectorAll('.saved-entry');
+    expect(items.length).toBe(1);
+    expect(items[0].querySelector('.entry-site').textContent).toBe('Arxiv');
+  });
+
+  test('updates saved count badge', () => {
+    renderSavedList([e1, e2]);
+    expect(document.getElementById('saved-count').textContent).toBe('2');
+  });
+
+  test('shows empty state when list is empty', () => {
+    renderSavedList([]);
+    const emptyState = document.getElementById('saved-empty-state');
+    expect(emptyState.style.display).not.toBe('none');
+    expect(emptyState.textContent).toBe('No pages saved yet.');
+  });
+
+  test('shows no-match message when filters eliminate all entries', () => {
+    const opt = document.createElement('option');
+    opt.value = 'github.com';
+    document.getElementById('filter-site-select').appendChild(opt);
+    document.getElementById('filter-site-select').value = 'github.com';
+
+    renderSavedList([e2]); // only arxiv, filtered for github → nothing matches
+    expect(document.getElementById('saved-empty-state').textContent).toBe('No pages match the current filters.');
+  });
+
+  test('populates site filter with unique sites from entries', () => {
+    renderSavedList([e1, e2, e3]);
+    const values = [...document.getElementById('filter-site-select').options].map((o) => o.value);
+    expect(values).toContain('github.com');
+    expect(values).toContain('arxiv.org');
+    expect(values).toContain('youtube.com');
+  });
+
+  test('each entry has a favicon img with the correct src', () => {
+    renderSavedList([e1]);
+    const img = document.querySelector('.favicon-wrap img');
+    expect(img).not.toBeNull();
+    expect(img.src).toContain('github.com');
+  });
+});
+
+// ─── removeSavedPage ─────────────────────────────────────────────────────────
+
+describe('removeSavedPage', () => {
+  let removeSavedPage;
+  const entry = { url: 'https://github.com/foo', site: 'github.com', pageType: 'article', savedAt: 1000 };
+
+  beforeEach(async () => {
+    document.body.innerHTML = OPTIONS_DOM;
+    chrome.storage.sync.get.mockResolvedValue({ blockedSites: [], savedPages: [entry] });
+    jest.resetModules();
+    ({ removeSavedPage } = require('../options'));
+    await flushPromises();
+  });
+
+  test('removes the entry from storage', async () => {
+    chrome.storage.sync.set.mockClear();
+    await removeSavedPage(entry.url);
+    expect(chrome.storage.sync.set).toHaveBeenCalledWith({ savedPages: [] });
+  });
+
+  test('re-renders the list after removal', async () => {
+    await removeSavedPage(entry.url);
+    expect(document.querySelectorAll('.saved-entry').length).toBe(0);
   });
 });
 

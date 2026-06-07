@@ -2,15 +2,16 @@ const flushPromises = () => new Promise((r) => setImmediate(r));
 
 const POPUP_DOM = `
   <span id="hostname">—</span>
+  <button id="save-btn" class="btn btn-save" disabled><span class="btn-label">Save</span></button>
   <button id="block-btn" disabled><span class="btn-label">Block this site</span></button>
   <button id="options-btn">Options</button>
   <div id="feedback" class="feedback hidden"></div>
 `;
 
-function setupPopup(tabUrl, blockedSites = []) {
+function setupPopup(tabUrl, blockedSites = [], savedPages = []) {
   document.body.innerHTML = POPUP_DOM;
-  chrome.tabs.query.mockResolvedValue(tabUrl ? [{ url: tabUrl }] : [{}]);
-  chrome.storage.sync.get.mockResolvedValue({ blockedSites });
+  chrome.tabs.query.mockResolvedValue(tabUrl ? [{ url: tabUrl, id: 1 }] : [{}]);
+  chrome.storage.sync.get.mockResolvedValue({ blockedSites, savedPages });
   jest.resetModules();
   require('../popup');
 }
@@ -54,6 +55,77 @@ describe('popup init', () => {
     await flushPromises();
 
     expect(document.getElementById('block-btn').disabled).toBe(true);
+  });
+});
+
+// ─── save button ─────────────────────────────────────────────────────────────
+
+describe('save button', () => {
+  const TAB_URL = 'https://github.com/anthropics/sdk';
+  const SAVED_ENTRY = { url: TAB_URL, site: 'github.com', pageType: 'article', savedAt: 1000 };
+
+  test('shows "Unsave" on init when URL is already saved', async () => {
+    setupPopup(TAB_URL, [], [SAVED_ENTRY]);
+    await flushPromises();
+
+    const btn = document.getElementById('save-btn');
+    expect(btn.querySelector('.btn-label').textContent).toBe('Unsave');
+    expect(btn.disabled).toBe(false);
+  });
+
+  test('shows "Save" on init when URL is not yet saved', async () => {
+    setupPopup(TAB_URL);
+    await flushPromises();
+
+    expect(document.getElementById('save-btn').querySelector('.btn-label').textContent).toBe('Save');
+  });
+
+  test('clicking Save calls executeScript twice, stores entry, and shows "Unsave"', async () => {
+    setupPopup(TAB_URL);
+    await flushPromises();
+
+    chrome.storage.sync.get.mockResolvedValue({ savedPages: [] });
+    document.getElementById('save-btn').click();
+    await flushPromises();
+
+    expect(chrome.scripting.executeScript).toHaveBeenCalledTimes(2);
+    expect(chrome.storage.sync.set).toHaveBeenCalledWith({
+      savedPages: [expect.objectContaining({ url: TAB_URL, site: 'github.com', pageType: 'article' })],
+    });
+    expect(document.getElementById('save-btn').querySelector('.btn-label').textContent).toBe('Unsave');
+  });
+
+  test('clicking Unsave removes entry from storage and shows "Save"', async () => {
+    setupPopup(TAB_URL, [], [SAVED_ENTRY]);
+    await flushPromises();
+
+    chrome.storage.sync.get.mockResolvedValue({ savedPages: [SAVED_ENTRY] });
+    document.getElementById('save-btn').click();
+    await flushPromises();
+
+    expect(chrome.storage.sync.set).toHaveBeenCalledWith({ savedPages: [] });
+    expect(document.getElementById('save-btn').querySelector('.btn-label').textContent).toBe('Save');
+  });
+
+  test('falls back to pageType "article" when executeScript rejects', async () => {
+    setupPopup(TAB_URL);
+    await flushPromises();
+
+    chrome.scripting.executeScript.mockRejectedValueOnce(new Error('not allowed'));
+    chrome.storage.sync.get.mockResolvedValue({ savedPages: [] });
+    document.getElementById('save-btn').click();
+    await flushPromises();
+
+    expect(chrome.storage.sync.set).toHaveBeenCalledWith({
+      savedPages: [expect.objectContaining({ pageType: 'article' })],
+    });
+  });
+
+  test('save button stays disabled for non-http tabs', async () => {
+    setupPopup('chrome://settings');
+    await flushPromises();
+
+    expect(document.getElementById('save-btn').disabled).toBe(true);
   });
 });
 

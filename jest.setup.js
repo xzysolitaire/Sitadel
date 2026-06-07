@@ -28,6 +28,9 @@ beforeEach(() => {
     tabs: {
       query: jest.fn(),
     },
+    scripting: {
+      executeScript: jest.fn().mockResolvedValue([{ result: "article" }]),
+    },
     history: {
       search: jest.fn().mockResolvedValue([]),
       deleteUrl: jest.fn().mockResolvedValue(undefined),
