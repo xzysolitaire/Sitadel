@@ -230,3 +230,214 @@ input[type="text"]:focus {
   padding: 16px 0;
   text-align: center;
 }
+
+/* Segmented control */
+.segmented {
+  display: flex;
+  background: #e0e0e6;
+  border-radius: 10px;
+  padding: 3px;
+  gap: 2px;
+}
+
+.seg-btn {
+  flex: 1;
+  padding: 8px 0;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #777;
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.18s;
+}
+
+.seg-btn--active {
+  background: #fff;
+  color: #1a1a1a;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.14);
+}
+
+/* Saved tab panel layout */
+.tab-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Saved toolbar */
+.saved-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.toolbar-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.toolbar-label {
+  font-size: 12px;
+  color: #aaa;
+  font-weight: 500;
+}
+
+select {
+  padding: 6px 28px 6px 10px;
+  border: 1.5px solid #e0e0e0;
+  border-radius: 7px;
+  font-size: 13px;
+  color: #444;
+  background-color: #fafafa;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23aaa' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+  outline: none;
+}
+
+/* Type chips */
+.chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.chip {
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1.5px solid #e8e8e8;
+  background: #f0f0f0;
+  color: #888;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.chip--active {
+  background: #1a1a1a;
+  color: #fff;
+  border-color: transparent;
+}
+
+/* Saved list header */
+.saved-list-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.saved-list-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #333;
+}
+
+.count--blue {
+  background: #3182ce;
+}
+
+/* Saved list */
+.saved-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.saved-entry {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 0;
+  border-bottom: 1px solid #f2f2f2;
+  animation: fadeIn 0.15s ease;
+}
+
+.saved-entry:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.saved-entry:first-child {
+  padding-top: 0;
+}
+
+/* Favicon */
+.favicon-wrap {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: #f4f4f6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.favicon-wrap img {
+  width: 20px;
+  height: 20px;
+  display: block;
+}
+
+/* Entry text */
+.saved-link {
+  text-decoration: none;
+  color: inherit;
+  flex: 1;
+  min-width: 0;
+}
+
+.saved-link:hover .entry-site {
+  color: #3182ce;
+}
+
+.entry-site {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.entry-path {
+  font-size: 12px;
+  color: #999;
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.entry-meta {
+  font-size: 11px;
+  color: #bbb;
+  margin-top: 3px;
+}
+
+/* Remove button override for saved entries */
+.saved-entry .remove-btn {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  margin-left: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 17px;
+  line-height: 1;
+  background: #f5f5f5;
+  color: #bbb;
+  border-radius: 6px;
+}
+
+.saved-entry .remove-btn:hover {
+  background: #fff0f0;
+  color: #c53030;
+}
