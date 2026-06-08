@@ -38,7 +38,7 @@ async function init() {
       await chrome.storage.sync.get([STORAGE_KEY, SAVED_KEY]);
 
     if (entries.some((e) => e.site === currentHostname)) {
-      blockLabel.textContent = "Already blocked";
+      blockLabel.textContent = "Blocked";
       blockBtn.disabled = true;
     }
 
@@ -100,7 +100,7 @@ blockBtn.addEventListener("click", async () => {
   }
   const newEntry = { site: currentHostname, blockedAt: Date.now() };
   await chrome.storage.sync.set({ [STORAGE_KEY]: [...entries, newEntry] });
-  blockLabel.textContent = "Already blocked";
+  blockLabel.textContent = "Blocked";
   blockBtn.disabled = true;
   showFeedback(`Blocked ${currentHostname}`, "success");
 });

@@ -39,7 +39,7 @@ describe('popup init', () => {
 
     const btn = document.getElementById('block-btn');
     expect(btn.disabled).toBe(true);
-    expect(btn.textContent).toBe('Already blocked');
+    expect(btn.textContent).toBe('Blocked');
   });
 
   test('does nothing for non-http/https tabs', async () => {
@@ -300,7 +300,7 @@ describe('block button', () => {
 
     const btn = document.getElementById('block-btn');
     expect(btn.disabled).toBe(true);
-    expect(btn.textContent).toBe('Already blocked');
+    expect(btn.textContent).toBe('Blocked');
   });
 
   test('shows feedback error and does not save when site is already blocked', async () => {
