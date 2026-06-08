@@ -82,6 +82,7 @@ saveBtn.addEventListener("click", async () => {
     site: currentHostname,
     pageType,
     savedAt: Date.now(),
+    title: currentTab.title || currentHostname,
   };
   const { [SAVED_KEY]: saved = [] } = await chrome.storage.sync.get(SAVED_KEY);
   await chrome.storage.sync.set({ [SAVED_KEY]: [...saved, newEntry] });

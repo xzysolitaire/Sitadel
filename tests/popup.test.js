@@ -10,7 +10,7 @@ const POPUP_DOM = `
 
 function setupPopup(tabUrl, blockedSites = [], savedPages = []) {
   document.body.innerHTML = POPUP_DOM;
-  chrome.tabs.query.mockResolvedValue(tabUrl ? [{ url: tabUrl, id: 1 }] : [{}]);
+  chrome.tabs.query.mockResolvedValue(tabUrl ? [{ url: tabUrl, id: 1, title: 'Test Page Title' }] : [{}]);
   chrome.storage.sync.get.mockResolvedValue({ blockedSites, savedPages });
   jest.resetModules();
   require('../popup');
@@ -90,7 +90,7 @@ describe('save button', () => {
 
     expect(chrome.scripting.executeScript).toHaveBeenCalledTimes(2);
     expect(chrome.storage.sync.set).toHaveBeenCalledWith({
-      savedPages: [expect.objectContaining({ url: TAB_URL, site: 'github.com', pageType: 'article' })],
+      savedPages: [expect.objectContaining({ url: TAB_URL, site: 'github.com', pageType: 'article', title: expect.any(String) })],
     });
     expect(document.getElementById('save-btn').querySelector('.btn-label').textContent).toBe('Unsave');
   });

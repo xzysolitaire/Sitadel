@@ -353,7 +353,7 @@ describe('renderSavedList', () => {
 
 describe('renderSavedList — entry structure', () => {
   let renderSavedList;
-  const entry = { url: 'https://github.com/anthropics/sdk', site: 'github.com', pageType: 'article', savedAt: 1748995200000 };
+  const entry = { url: 'https://github.com/anthropics/sdk', site: 'github.com', pageType: 'article', savedAt: 1748995200000, title: 'anthropic/anthropic-sdk-python' };
 
   beforeEach(() => {
     document.body.innerHTML = OPTIONS_DOM;
@@ -374,9 +374,14 @@ describe('renderSavedList — entry structure', () => {
     expect(link.target).toBe('_blank');
   });
 
-  test('entry-path shows the URL path', () => {
+  test('entry-site shows the page title', () => {
     renderSavedList([entry]);
-    expect(document.querySelector('.entry-path').textContent).toBe('/anthropics/sdk');
+    expect(document.querySelector('.entry-site').textContent).toBe('anthropic/anthropic-sdk-python');
+  });
+
+  test('entry-path is not rendered', () => {
+    renderSavedList([entry]);
+    expect(document.querySelector('.entry-path')).toBeNull();
   });
 
   test('entry-meta contains the pageType', () => {

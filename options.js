@@ -102,7 +102,7 @@ function renderSavedList(entries) {
 
   if (sort === "name") {
     filtered = [...filtered].sort((a, b) =>
-      humaniseSite(a.site).localeCompare(humaniseSite(b.site))
+      (a.title || humaniseSite(a.site)).localeCompare(b.title || humaniseSite(b.site))
     );
   } else {
     filtered = [...filtered].sort((a, b) => b.savedAt - a.savedAt);
@@ -138,26 +138,15 @@ function renderSavedList(entries) {
     link.target = "_blank";
     link.rel = "noopener noreferrer";
 
-    const siteName = document.createElement("div");
-    siteName.className = "entry-site";
-    siteName.textContent = humaniseSite(entry.site);
-
-    let path = "";
-    try {
-      const parsed = new URL(entry.url);
-      path = parsed.pathname + parsed.search;
-    } catch { path = entry.url; }
-
-    const entryPath = document.createElement("div");
-    entryPath.className = "entry-path";
-    entryPath.textContent = path;
+    const titleEl = document.createElement("div");
+    titleEl.className = "entry-site";
+    titleEl.textContent = entry.title || humaniseSite(entry.site);
 
     const meta = document.createElement("div");
     meta.className = "entry-meta";
     meta.textContent = `${entry.pageType} · ${formatDate(entry.savedAt)}`;
 
-    link.appendChild(siteName);
-    link.appendChild(entryPath);
+    link.appendChild(titleEl);
     link.appendChild(meta);
 
     const removeBtn = document.createElement("button");
