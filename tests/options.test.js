@@ -15,9 +15,11 @@ const OPTIONS_DOM = `
     <div id="type-chips">
       <button class="chip chip--active" data-type="">All types</button>
       <button class="chip" data-type="article">Article</button>
-      <button class="chip" data-type="youtube">YouTube</button>
-      <button class="chip" data-type="pdf">PDF</button>
       <button class="chip" data-type="video">Video</button>
+      <button class="chip" data-type="audio">Audio</button>
+      <button class="chip" data-type="paper">Paper</button>
+      <button class="chip" data-type="docs">Docs</button>
+      <button class="chip" data-type="page">Page</button>
     </div>
     <span id="saved-count">0</span>
     <ul id="saved-list">
@@ -303,9 +305,14 @@ describe('renderSavedList', () => {
 
   test('filters by content type via active chip', () => {
     document.querySelectorAll('.chip').forEach((c) => c.classList.remove('chip--active'));
-    document.querySelector('.chip[data-type="pdf"]').classList.add('chip--active');
+    document.querySelector('.chip[data-type="paper"]').classList.add('chip--active');
 
-    renderSavedList([e1, e2, e3]);
+    const entries = [
+      { ...e1, pageType: 'article' },
+      { ...e2, pageType: 'paper' },
+      { ...e3, pageType: 'video' },
+    ];
+    renderSavedList(entries);
     const items = document.querySelectorAll('.saved-entry');
     expect(items.length).toBe(1);
     expect(items[0].querySelector('.entry-site').textContent).toBe('Arxiv');
