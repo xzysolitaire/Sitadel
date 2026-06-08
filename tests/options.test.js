@@ -349,6 +349,184 @@ describe('renderSavedList', () => {
   });
 });
 
+// ─── renderSavedList — entry structure ───────────────────────────────────────
+
+describe('renderSavedList — entry structure', () => {
+  let renderSavedList;
+  const entry = { url: 'https://github.com/anthropics/sdk', site: 'github.com', pageType: 'article', savedAt: 1748995200000 };
+
+  beforeEach(() => {
+    document.body.innerHTML = OPTIONS_DOM;
+    chrome.storage.sync.get.mockResolvedValue({ blockedSites: [], savedPages: [] });
+    jest.resetModules();
+    ({ renderSavedList } = require('../options'));
+  });
+
+  test('entry link href matches the saved URL', () => {
+    renderSavedList([entry]);
+    const link = document.querySelector('.saved-link');
+    expect(link.getAttribute('href')).toBe(entry.url);
+  });
+
+  test('entry link opens in a new tab', () => {
+    renderSavedList([entry]);
+    const link = document.querySelector('.saved-link');
+    expect(link.target).toBe('_blank');
+  });
+
+  test('entry-path shows the URL path', () => {
+    renderSavedList([entry]);
+    expect(document.querySelector('.entry-path').textContent).toBe('/anthropics/sdk');
+  });
+
+  test('entry-meta contains the pageType', () => {
+    renderSavedList([entry]);
+    expect(document.querySelector('.entry-meta').textContent).toContain('article');
+  });
+
+  test('entry-meta contains the · separator', () => {
+    renderSavedList([entry]);
+    expect(document.querySelector('.entry-meta').textContent).toContain('·');
+  });
+
+  test('empty state is hidden when entries are present', () => {
+    renderSavedList([entry]);
+    expect(document.getElementById('saved-empty-state').style.display).toBe('none');
+  });
+
+  test('site filter option text is humanized', () => {
+    renderSavedList([entry]);
+    const opts = [...document.getElementById('filter-site-select').options];
+    const githubOpt = opts.find((o) => o.value === 'github.com');
+    expect(githubOpt.textContent).toBe('Github');
+  });
+});
+
+// ─── renderSavedList — sort (additional) ─────────────────────────────────────
+
+describe('renderSavedList — sort (additional)', () => {
+  let renderSavedList;
+  const e1 = { url: 'https://github.com/foo', site: 'github.com', pageType: 'article', savedAt: 2000 };
+  const e2 = { url: 'https://arxiv.org/bar', site: 'arxiv.org', pageType: 'pdf', savedAt: 1000 };
+  const e3 = { url: 'https://youtube.com/watch?v=abc', site: 'youtube.com', pageType: 'youtube', savedAt: 3000 };
+
+  beforeEach(() => {
+    document.body.innerHTML = OPTIONS_DOM;
+    chrome.storage.sync.get.mockResolvedValue({ blockedSites: [], savedPages: [] });
+    jest.resetModules();
+    ({ renderSavedList } = require('../options'));
+  });
+
+  test('Name A-Z sort is case-insensitive', () => {
+    const mixed = [
+      { url: 'https://zebra.com', site: 'zebra.com', pageType: 'article', savedAt: 3 },
+      { url: 'https://apple.com', site: 'apple.com', pageType: 'article', savedAt: 2 },
+      { url: 'https://mango.com', site: 'mango.com', pageType: 'article', savedAt: 1 },
+    ];
+    document.getElementById('sort-select').value = 'name';
+    renderSavedList(mixed);
+
+    const names = [...document.querySelectorAll('.saved-entry .entry-site')].map((el) => el.textContent);
+    expect(names).toEqual(['Apple', 'Mango', 'Zebra']);
+  });
+
+  test('switching sort back to newest first restores savedAt order', () => {
+    document.getElementById('sort-select').value = 'name';
+    renderSavedList([e1, e2, e3]);
+
+    document.getElementById('sort-select').value = 'savedAt';
+    renderSavedList([e1, e2, e3]);
+
+    const names = [...document.querySelectorAll('.saved-entry .entry-site')].map((el) => el.textContent);
+    expect(names).toEqual(['Youtube', 'Github', 'Arxiv']);
+  });
+});
+
+// ─── renderSavedList — filter (additional) ───────────────────────────────────
+
+describe('renderSavedList — filter (additional)', () => {
+  let renderSavedList;
+  const e1 = { url: 'https://github.com/foo', site: 'github.com', pageType: 'article', savedAt: 2000 };
+  const e2 = { url: 'https://arxiv.org/bar', site: 'arxiv.org', pageType: 'pdf', savedAt: 1000 };
+  const e3 = { url: 'https://youtube.com/watch?v=abc', site: 'youtube.com', pageType: 'youtube', savedAt: 3000 };
+
+  beforeEach(() => {
+    document.body.innerHTML = OPTIONS_DOM;
+    chrome.storage.sync.get.mockResolvedValue({ blockedSites: [], savedPages: [] });
+    jest.resetModules();
+    ({ renderSavedList } = require('../options'));
+  });
+
+  test('resetting site filter to "All sites" shows all entries', () => {
+    const opt = document.createElement('option');
+    opt.value = 'github.com';
+    document.getElementById('filter-site-select').appendChild(opt);
+    document.getElementById('filter-site-select').value = 'github.com';
+    renderSavedList([e1, e2, e3]);
+
+    document.getElementById('filter-site-select').value = '';
+    renderSavedList([e1, e2, e3]);
+
+    expect(document.querySelectorAll('.saved-entry').length).toBe(3);
+  });
+
+  test('count reflects filtered count, not total', () => {
+    const opt = document.createElement('option');
+    opt.value = 'github.com';
+    document.getElementById('filter-site-select').appendChild(opt);
+    document.getElementById('filter-site-select').value = 'github.com';
+
+    renderSavedList([e1, e2, e3]);
+
+    expect(document.getElementById('saved-count').textContent).toBe('1');
+  });
+
+  test('site and type chip filters combine as intersection', () => {
+    const entries = [
+      { url: 'https://github.com/a', site: 'github.com', pageType: 'article', savedAt: 4 },
+      { url: 'https://github.com/b', site: 'github.com', pageType: 'youtube', savedAt: 3 },
+      { url: 'https://reddit.com/a', site: 'reddit.com', pageType: 'article', savedAt: 2 },
+    ];
+
+    const opt = document.createElement('option');
+    opt.value = 'github.com';
+    document.getElementById('filter-site-select').appendChild(opt);
+    document.getElementById('filter-site-select').value = 'github.com';
+
+    document.querySelectorAll('.chip').forEach((c) => c.classList.remove('chip--active'));
+    document.querySelector('.chip[data-type="article"]').classList.add('chip--active');
+
+    renderSavedList(entries);
+
+    const items = document.querySelectorAll('.saved-entry');
+    expect(items.length).toBe(1);
+    expect(items[0].querySelector('.entry-site').textContent).toBe('Github');
+  });
+});
+
+// ─── count badge after removal ───────────────────────────────────────────────
+
+describe('count badge after removal', () => {
+  const e1 = { url: 'https://github.com/foo', site: 'github.com', pageType: 'article', savedAt: 2000 };
+  const e2 = { url: 'https://reddit.com/bar', site: 'reddit.com', pageType: 'article', savedAt: 1000 };
+
+  beforeEach(async () => {
+    document.body.innerHTML = OPTIONS_DOM;
+    chrome.storage.sync.get.mockResolvedValue({ blockedSites: [], savedPages: [e1, e2] });
+    jest.resetModules();
+    require('../options');
+    await flushPromises();
+  });
+
+  test('count decrements when a remove button is clicked', async () => {
+    const removeBtn = document.querySelector('.saved-entry .remove-btn');
+    removeBtn.click();
+    await flushPromises();
+
+    expect(document.getElementById('saved-count').textContent).toBe('1');
+  });
+});
+
 // ─── removeSavedPage ─────────────────────────────────────────────────────────
 
 describe('removeSavedPage', () => {

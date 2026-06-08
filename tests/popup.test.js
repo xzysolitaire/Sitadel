@@ -129,6 +129,152 @@ describe('save button', () => {
   });
 });
 
+// ─── save button — init (additional) ────────────────────────────────────────
+
+describe('save button — init (additional)', () => {
+  test('enables save button for https page', async () => {
+    setupPopup('https://example.com');
+    await flushPromises();
+
+    expect(document.getElementById('save-btn').disabled).toBe(false);
+  });
+
+  test('enables save button for http page', async () => {
+    setupPopup('http://example.com');
+    await flushPromises();
+
+    expect(document.getElementById('save-btn').disabled).toBe(false);
+  });
+
+  test('stays disabled when tab has no URL', async () => {
+    setupPopup(null);
+    await flushPromises();
+
+    expect(document.getElementById('save-btn').disabled).toBe(true);
+  });
+
+  test('shows "Save" for a different URL on the same hostname (exact-URL dedup)', async () => {
+    setupPopup(
+      'https://github.com/foo',
+      [],
+      [{ url: 'https://github.com/bar', site: 'github.com', pageType: 'article', savedAt: 0 }],
+    );
+    await flushPromises();
+
+    expect(document.querySelector('#save-btn .btn-label').textContent).toBe('Save');
+  });
+});
+
+// ─── save action — additional ────────────────────────────────────────────────
+
+describe('save action — additional', () => {
+  beforeEach(async () => {
+    setupPopup('https://www.github.com/anthropics/sdk');
+    await flushPromises();
+  });
+
+  test('strips www from the stored site field', async () => {
+    chrome.storage.sync.get.mockResolvedValue({ savedPages: [] });
+    document.getElementById('save-btn').click();
+    await flushPromises();
+
+    const saved = chrome.storage.sync.set.mock.calls[0][0].savedPages[0];
+    expect(saved.site).toBe('github.com');
+  });
+
+  test('stores savedAt as a number', async () => {
+    chrome.storage.sync.get.mockResolvedValue({ savedPages: [] });
+    document.getElementById('save-btn').click();
+    await flushPromises();
+
+    const saved = chrome.storage.sync.set.mock.calls[0][0].savedPages[0];
+    expect(typeof saved.savedAt).toBe('number');
+  });
+
+  test('stores pageType returned by executeScript', async () => {
+    chrome.scripting.executeScript
+      .mockResolvedValueOnce([])                     // inject file
+      .mockResolvedValueOnce([{ result: 'youtube' }]); // execute func
+    chrome.storage.sync.get.mockResolvedValue({ savedPages: [] });
+    document.getElementById('save-btn').click();
+    await flushPromises();
+
+    const saved = chrome.storage.sync.set.mock.calls[0][0].savedPages[0];
+    expect(saved.pageType).toBe('youtube');
+  });
+
+  test('appends to existing savedPages without overwriting', async () => {
+    const existing = { url: 'https://other.com', site: 'other.com', pageType: 'article', savedAt: 0 };
+    chrome.storage.sync.get.mockResolvedValue({ savedPages: [existing] });
+    document.getElementById('save-btn').click();
+    await flushPromises();
+
+    const saved = chrome.storage.sync.set.mock.calls[0][0].savedPages;
+    expect(saved).toHaveLength(2);
+  });
+
+  test('save button stays enabled after saving', async () => {
+    chrome.storage.sync.get.mockResolvedValue({ savedPages: [] });
+    document.getElementById('save-btn').click();
+    await flushPromises();
+
+    expect(document.getElementById('save-btn').disabled).toBe(false);
+  });
+
+  test('shows "Saved!" feedback after saving', async () => {
+    chrome.storage.sync.get.mockResolvedValue({ savedPages: [] });
+    document.getElementById('save-btn').click();
+    await flushPromises();
+
+    const feedback = document.getElementById('feedback');
+    expect(feedback.classList.contains('hidden')).toBe(false);
+    expect(feedback.textContent).toBe('Saved!');
+  });
+});
+
+// ─── unsave action — additional ──────────────────────────────────────────────
+
+describe('unsave action — additional', () => {
+  const TAB_URL = 'https://github.com/foo';
+  const OTHER_URL = 'https://github.com/bar';
+  const entry = { url: TAB_URL, site: 'github.com', pageType: 'article', savedAt: 1 };
+
+  beforeEach(async () => {
+    setupPopup(TAB_URL, [], [entry]);
+    await flushPromises();
+  });
+
+  test('does not remove other URLs on the same hostname', async () => {
+    chrome.storage.sync.get.mockResolvedValue({
+      savedPages: [entry, { url: OTHER_URL, site: 'github.com', pageType: 'article', savedAt: 2 }],
+    });
+    document.getElementById('save-btn').click();
+    await flushPromises();
+
+    const saved = chrome.storage.sync.set.mock.calls[0][0].savedPages;
+    expect(saved).toHaveLength(1);
+    expect(saved[0].url).toBe(OTHER_URL);
+  });
+
+  test('shows "Unsaved" feedback after unsaving', async () => {
+    chrome.storage.sync.get.mockResolvedValue({ savedPages: [entry] });
+    document.getElementById('save-btn').click();
+    await flushPromises();
+
+    const feedback = document.getElementById('feedback');
+    expect(feedback.classList.contains('hidden')).toBe(false);
+    expect(feedback.textContent).toBe('Unsaved');
+  });
+
+  test('save button stays enabled after unsaving', async () => {
+    chrome.storage.sync.get.mockResolvedValue({ savedPages: [entry] });
+    document.getElementById('save-btn').click();
+    await flushPromises();
+
+    expect(document.getElementById('save-btn').disabled).toBe(false);
+  });
+});
+
 // ─── block button ────────────────────────────────────────────────────────────
 
 describe('block button', () => {
