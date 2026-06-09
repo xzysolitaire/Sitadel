@@ -15,32 +15,13 @@ let currentHostname = null;
 let currentTab = null;
 let pageSaved = false;
 
-function hostnameToColor(hostname) {
-  const palette = ["#0ea5e9", "#8b5cf6", "#10b981", "#f59e0b", "#ef4444", "#ec4899"];
-  let h = 0;
-  for (const c of hostname) h = (h * 31 + c.charCodeAt(0)) & 0xffff;
-  return palette[h % palette.length];
-}
 
-function setFavicon(favIconUrl, hostname) {
-  if (!faviconEl) return;
-  if (favIconUrl) {
-    faviconEl.src = favIconUrl;
-    faviconEl.onerror = () => showFaviconFallback(hostname);
-  } else {
-    showFaviconFallback(hostname);
-  }
-}
-
-function showFaviconFallback(hostname) {
+function setFavicon(favIconUrl) {
   const wrap = document.getElementById("favicon-wrap");
-  if (!wrap) return;
-  const fb = document.createElement("div");
-  fb.className = "favicon-fallback";
-  fb.textContent = hostname[0].toUpperCase();
-  fb.style.background = hostnameToColor(hostname);
-  wrap.innerHTML = "";
-  wrap.appendChild(fb);
+  if (!wrap || !favIconUrl) return;
+  faviconEl.src = favIconUrl;
+  faviconEl.onload = () => { wrap.style.display = "block"; };
+  faviconEl.onerror = () => { wrap.style.display = "none"; };
 }
 
 function showFeedback(msg, type) {
@@ -62,7 +43,7 @@ async function init() {
     currentHostname = url.hostname.replace(/^www\./, "");
     hostnameEl.textContent = currentHostname;
     if (pageTitleEl) pageTitleEl.textContent = tab.title || currentHostname;
-    setFavicon(tab.favIconUrl || "", currentHostname);
+    setFavicon(tab.favIconUrl || "");
     blockBtn.disabled = false;
     saveBtn.disabled = false;
 
