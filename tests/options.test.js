@@ -12,15 +12,15 @@ const OPTIONS_DOM = `
       <option value="savedAt">Newest first</option>
       <option value="name">Name A-Z</option>
     </select>
-    <div id="type-chips">
-      <button class="chip chip--active" data-type="">All types</button>
-      <button class="chip" data-type="article">Article</button>
-      <button class="chip" data-type="video">Video</button>
-      <button class="chip" data-type="audio">Audio</button>
-      <button class="chip" data-type="paper">Paper</button>
-      <button class="chip" data-type="docs">Docs</button>
-      <button class="chip" data-type="page">Page</button>
-    </div>
+    <select id="filter-type-select">
+      <option value="">All types</option>
+      <option value="article">Article</option>
+      <option value="video">Video</option>
+      <option value="audio">Audio</option>
+      <option value="paper">Paper</option>
+      <option value="docs">Docs</option>
+      <option value="page">Page</option>
+    </select>
     <span id="saved-count">0</span>
     <ul id="saved-list">
       <li id="saved-empty-state" class="empty-state">No pages saved yet.</li>
@@ -307,9 +307,8 @@ describe('renderSavedList', () => {
     expect(items[0].querySelector('.entry-site').textContent).toBe('Github');
   });
 
-  test('filters by content type via active chip', () => {
-    document.querySelectorAll('.chip').forEach((c) => c.classList.remove('chip--active'));
-    document.querySelector('.chip[data-type="paper"]').classList.add('chip--active');
+  test('filters by content type via type select', () => {
+    document.getElementById('filter-type-select').value = 'paper';
 
     const entries = [
       { ...e1, pageType: 'article' },
@@ -497,7 +496,7 @@ describe('renderSavedList — filter (additional)', () => {
     expect(document.getElementById('saved-count').textContent).toBe('1');
   });
 
-  test('site and type chip filters combine as intersection', () => {
+  test('site and type filters combine as intersection', () => {
     const entries = [
       { url: 'https://github.com/a', site: 'github.com', pageType: 'article', savedAt: 4 },
       { url: 'https://github.com/b', site: 'github.com', pageType: 'youtube', savedAt: 3 },
@@ -508,9 +507,7 @@ describe('renderSavedList — filter (additional)', () => {
     opt.value = 'github.com';
     document.getElementById('filter-site-select').appendChild(opt);
     document.getElementById('filter-site-select').value = 'github.com';
-
-    document.querySelectorAll('.chip').forEach((c) => c.classList.remove('chip--active'));
-    document.querySelector('.chip[data-type="article"]').classList.add('chip--active');
+    document.getElementById('filter-type-select').value = 'article';
 
     renderSavedList(entries);
 

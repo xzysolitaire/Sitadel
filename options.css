@@ -20,10 +20,23 @@ body {
   gap: 32px;
 }
 
+.header-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.header-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: block;
+}
+
 header h1 {
   font-size: 28px;
   font-weight: 800;
-  color: #e53e3e;
+  color: #111;
   letter-spacing: -0.5px;
 }
 
@@ -274,14 +287,16 @@ input[type="text"]:focus {
 .saved-toolbar {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
-.toolbar-controls {
+.toolbar-left,
+.toolbar-right {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
 }
 
 .toolbar-label {
@@ -306,30 +321,6 @@ select {
   outline: none;
 }
 
-/* Type chips */
-.chips {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-.chip {
-  padding: 5px 12px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 600;
-  border: 1.5px solid #e8e8e8;
-  background: #f0f0f0;
-  color: #888;
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s;
-}
-
-.chip--active {
-  background: #1a1a1a;
-  color: #fff;
-  border-color: transparent;
-}
 
 /* Saved list header */
 .saved-list-header {

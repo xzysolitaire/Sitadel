@@ -9,8 +9,11 @@
 <body>
   <div class="page">
     <header>
-      <h1>Sitadel</h1>
-      <p class="subtitle">Manage your sites</p>
+      <div class="header-title">
+        <img src="icons/icon48.png" width="32" height="32" class="header-icon" alt="" />
+        <h1>Sitadel</h1>
+      </div>
+      <p class="subtitle">Curate your focus.</p>
     </header>
 
     <div class="segmented">
@@ -20,27 +23,29 @@
 
     <div id="tab-saved" class="tab-panel">
       <div class="saved-toolbar">
-        <div class="toolbar-controls">
+        <div class="toolbar-left">
+          <span class="toolbar-label">Type</span>
+          <select id="filter-type-select">
+            <option value="">All types</option>
+            <option value="article">Article</option>
+            <option value="video">Video</option>
+            <option value="audio">Audio</option>
+            <option value="paper">Paper</option>
+            <option value="docs">Docs</option>
+            <option value="page">Page</option>
+          </select>
           <span class="toolbar-label">Site</span>
           <select id="filter-site-select">
             <option value="">All sites</option>
           </select>
+        </div>
+        <div class="toolbar-right">
           <span class="toolbar-label">Sort</span>
           <select id="sort-select">
             <option value="savedAt">Newest first</option>
             <option value="name">Name A–Z</option>
           </select>
         </div>
-      </div>
-
-      <div class="chips" id="type-chips">
-        <button class="chip chip--active" data-type="">All types</button>
-        <button class="chip" data-type="article">Article</button>
-        <button class="chip" data-type="video">Video</button>
-        <button class="chip" data-type="audio">Audio</button>
-        <button class="chip" data-type="paper">Paper</button>
-        <button class="chip" data-type="docs">Docs</button>
-        <button class="chip" data-type="page">Page</button>
       </div>
 
       <div class="saved-list-header">

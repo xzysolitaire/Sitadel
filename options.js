@@ -15,6 +15,7 @@ const savedEmptyState = document.getElementById("saved-empty-state");
 const savedCountEl = document.getElementById("saved-count");
 const sortSelect = document.getElementById("sort-select");
 const filterSiteSelect = document.getElementById("filter-site-select");
+const filterTypeSelect = document.getElementById("filter-type-select");
 
 let savedEntries = [];
 
@@ -46,8 +47,7 @@ function formatDate(ts) {
 }
 
 function activeTypeFilter() {
-  const active = document.querySelector(".chip.chip--active");
-  return active ? active.dataset.type : "";
+  return filterTypeSelect ? filterTypeSelect.value : "";
 }
 
 function showError(msg) {
@@ -244,18 +244,9 @@ document.querySelectorAll(".seg-btn").forEach((btn) => {
   });
 });
 
-// Type chip switching
-document.querySelectorAll(".chip").forEach((chip) => {
-  chip.addEventListener("click", () => {
-    document.querySelectorAll(".chip").forEach((c) => c.classList.remove("chip--active"));
-    chip.classList.add("chip--active");
-    renderSavedList(savedEntries);
-  });
-});
-
-// Sort and site filter
-[sortSelect, filterSiteSelect].forEach((el) =>
-  el.addEventListener("change", () => renderSavedList(savedEntries))
+// Filter and sort controls
+[sortSelect, filterSiteSelect, filterTypeSelect].forEach((el) =>
+  el?.addEventListener("change", () => renderSavedList(savedEntries))
 );
 
 chrome.storage.onChanged.addListener((changes, area) => {
