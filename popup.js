@@ -2,6 +2,8 @@ const STORAGE_KEY = "blockedSites";
 const SAVED_KEY = "savedPages";
 
 const hostnameEl = document.getElementById("hostname");
+const pageTitleEl = document.getElementById("page-title");
+const faviconEl = document.getElementById("favicon");
 const blockBtn = document.getElementById("block-btn");
 const blockLabel = blockBtn.querySelector(".btn-label");
 const saveBtn = document.getElementById("save-btn");
@@ -12,6 +14,34 @@ const feedbackEl = document.getElementById("feedback");
 let currentHostname = null;
 let currentTab = null;
 let pageSaved = false;
+
+function hostnameToColor(hostname) {
+  const palette = ["#0ea5e9", "#8b5cf6", "#10b981", "#f59e0b", "#ef4444", "#ec4899"];
+  let h = 0;
+  for (const c of hostname) h = (h * 31 + c.charCodeAt(0)) & 0xffff;
+  return palette[h % palette.length];
+}
+
+function setFavicon(favIconUrl, hostname) {
+  if (!faviconEl) return;
+  if (favIconUrl) {
+    faviconEl.src = favIconUrl;
+    faviconEl.onerror = () => showFaviconFallback(hostname);
+  } else {
+    showFaviconFallback(hostname);
+  }
+}
+
+function showFaviconFallback(hostname) {
+  const wrap = document.getElementById("favicon-wrap");
+  if (!wrap) return;
+  const fb = document.createElement("div");
+  fb.className = "favicon-fallback";
+  fb.textContent = hostname[0].toUpperCase();
+  fb.style.background = hostnameToColor(hostname);
+  wrap.innerHTML = "";
+  wrap.appendChild(fb);
+}
 
 function showFeedback(msg, type) {
   feedbackEl.textContent = msg;
@@ -31,6 +61,8 @@ async function init() {
     currentTab = tab;
     currentHostname = url.hostname.replace(/^www\./, "");
     hostnameEl.textContent = currentHostname;
+    if (pageTitleEl) pageTitleEl.textContent = tab.title || currentHostname;
+    setFavicon(tab.favIconUrl || "", currentHostname);
     blockBtn.disabled = false;
     saveBtn.disabled = false;
 
