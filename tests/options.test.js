@@ -249,12 +249,16 @@ describe('humaniseSite', () => {
     ({ humaniseSite } = require('../options'));
   });
 
-  test('capitalises the first segment of a domain', () => {
+  test('capitalises the domain name for a two-part hostname', () => {
     expect(humaniseSite('github.com')).toBe('Github');
   });
 
-  test('works with multi-segment domains', () => {
+  test('works with another two-part hostname', () => {
     expect(humaniseSite('reddit.com')).toBe('Reddit');
+  });
+
+  test('uses the domain name, not the subdomain, for subdomains', () => {
+    expect(humaniseSite('code.claude.com')).toBe('Claude');
   });
 
   test('single-word hostname', () => {

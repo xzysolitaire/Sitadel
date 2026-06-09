@@ -32,7 +32,8 @@ function daysLeft(blockedAt) {
 }
 
 function humaniseSite(site) {
-  const name = site.split(".")[0];
+  const parts = site.split(".");
+  const name = parts.length >= 2 ? parts[parts.length - 2] : parts[0];
   return name.charAt(0).toUpperCase() + name.slice(1);
 }
 
