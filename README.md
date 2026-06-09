@@ -12,7 +12,7 @@ A lightweight Chrome extension that lets you block distracting websites. Add any
 
 ### Popup
 
-<img width="283" height="153" alt="Screenshot 2026-06-04 at 12 44 19 AM" src="https://github.com/user-attachments/assets/b4e95c7c-2054-4c3f-b092-5695d674d4d4" />
+<img width="286" height="188" alt="Screenshot 2026-06-09 at 3 34 45 PM" src="https://github.com/user-attachments/assets/01720dad-157c-4bb1-a14c-f55b8dc6a487" />
 
 ## Installation
 
