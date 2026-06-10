@@ -275,6 +275,17 @@ unblockCooldownToggle.addEventListener("change", () => {
   });
 });
 
+const blockedListSection = document.getElementById("blocked-list-section");
+blockedListSection.querySelector(".list-section-toggle").addEventListener("click", () => {
+  blockedListSection.classList.toggle("collapsed");
+});
+blockedListSection.querySelector(".list-section-toggle").addEventListener("keydown", (e) => {
+  if (e.key === "Enter" || e.key === " ") {
+    e.preventDefault();
+    blockedListSection.classList.toggle("collapsed");
+  }
+});
+
 addBtn.addEventListener("click", addSite);
 urlInput.addEventListener("keydown", (e) => {
   if (e.key === "Enter") addSite();

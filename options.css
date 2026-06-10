@@ -163,6 +163,31 @@ input[type="text"]:focus {
   gap: 8px;
 }
 
+.list-section-toggle {
+  cursor: pointer;
+  user-select: none;
+}
+
+.list-section-toggle:focus-visible {
+  outline: 2px solid #4f46e5;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.collapse-chevron {
+  margin-left: auto;
+  color: #999;
+  transition: transform 0.2s ease;
+}
+
+.list-section.collapsed .collapse-chevron {
+  transform: rotate(-90deg);
+}
+
+.list-section.collapsed .site-list {
+  display: none;
+}
+
 .count {
   display: inline-flex;
   align-items: center;

@@ -31,10 +31,14 @@ const OPTIONS_DOM = `
     <input id="url-input" />
     <button id="add-btn">Add</button>
     <span id="add-error" class="hidden"></span>
-    <ul id="site-list">
-      <li id="empty-state" style="display:none"></li>
-    </ul>
-    <span id="count">0</span>
+    <section id="blocked-list-section" class="list-section collapsed">
+      <h2 class="list-section-toggle" role="button" tabindex="0">
+        Blocked sites <span id="count">0</span>
+      </h2>
+      <ul id="site-list">
+        <li id="empty-state" style="display:none"></li>
+      </ul>
+    </section>
     <input type="checkbox" id="clear-history-toggle" />
     <input type="checkbox" id="unblock-cooldown-toggle" />
   </div>
