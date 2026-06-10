@@ -35,9 +35,11 @@ const OPTIONS_DOM = `
       <h2 class="list-section-toggle" role="button" tabindex="0">
         Blocked sites <span id="count">0</span>
       </h2>
-      <ul id="site-list">
-        <li id="empty-state" style="display:none"></li>
-      </ul>
+      <div class="collapsible-body">
+        <ul id="site-list">
+          <li id="empty-state" style="display:none"></li>
+        </ul>
+      </div>
     </section>
     <input type="checkbox" id="clear-history-toggle" />
     <input type="checkbox" id="unblock-cooldown-toggle" />

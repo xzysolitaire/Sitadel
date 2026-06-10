@@ -184,8 +184,19 @@ input[type="text"]:focus {
   transform: rotate(-90deg);
 }
 
-.list-section.collapsed .site-list {
-  display: none;
+.collapsible-body {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 0.25s ease;
+}
+
+.collapsed .collapsible-body {
+  grid-template-rows: 0fr;
+}
+
+.collapsible-body > * {
+  overflow: hidden;
+  min-height: 0;
 }
 
 .count {
