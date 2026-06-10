@@ -8,10 +8,10 @@ const POPUP_DOM = `
   <div id="feedback" class="feedback hidden"></div>
 `;
 
-function setupPopup(tabUrl, blockedSites = [], savedPages = []) {
+function setupPopup(tabUrl, blockedSites = [], savedPages = [], unblockCooldown = true) {
   document.body.innerHTML = POPUP_DOM;
   chrome.tabs.query.mockResolvedValue(tabUrl ? [{ url: tabUrl, id: 1, title: 'Test Page Title' }] : [{}]);
-  chrome.storage.sync.get.mockResolvedValue({ blockedSites, savedPages });
+  chrome.storage.sync.get.mockResolvedValue({ blockedSites, savedPages, unblockCooldown });
   jest.resetModules();
   require('../popup');
 }
@@ -312,5 +312,57 @@ describe('block button', () => {
 
     expect(chrome.storage.sync.set).not.toHaveBeenCalled();
     expect(document.getElementById('feedback').classList.contains('hidden')).toBe(false);
+  });
+});
+
+// ─── block button — cooldown off ─────────────────────────────────────────────
+
+describe('block button — cooldown off', () => {
+  test('shows enabled Unblock button on init when site is blocked and cooldown is off', async () => {
+    setupPopup('https://reddit.com', [{ site: 'reddit.com', blockedAt: 0 }], [], false);
+    await flushPromises();
+
+    const btn = document.getElementById('block-btn');
+    expect(btn.disabled).toBe(false);
+    expect(btn.querySelector('.btn-label').textContent).toBe('Unblock');
+  });
+
+  test('clicking Unblock removes site from storage', async () => {
+    const entry = { site: 'reddit.com', blockedAt: 0 };
+    setupPopup('https://reddit.com', [entry], [], false);
+    await flushPromises();
+
+    chrome.storage.sync.get.mockResolvedValue({ blockedSites: [entry] });
+    document.getElementById('block-btn').click();
+    await flushPromises();
+
+    expect(chrome.storage.sync.set).toHaveBeenCalledWith({ blockedSites: [] });
+  });
+
+  test('clicking Unblock shows Block label and keeps button enabled', async () => {
+    const entry = { site: 'reddit.com', blockedAt: 0 };
+    setupPopup('https://reddit.com', [entry], [], false);
+    await flushPromises();
+
+    chrome.storage.sync.get.mockResolvedValue({ blockedSites: [entry] });
+    document.getElementById('block-btn').click();
+    await flushPromises();
+
+    const btn = document.getElementById('block-btn');
+    expect(btn.disabled).toBe(false);
+    expect(btn.querySelector('.btn-label').textContent).toBe('Block');
+  });
+
+  test('after blocking with cooldown off, button shows Unblock and stays enabled', async () => {
+    setupPopup('https://twitter.com/home', [], [], false);
+    await flushPromises();
+
+    chrome.storage.sync.get.mockResolvedValue({ blockedSites: [] });
+    document.getElementById('block-btn').click();
+    await flushPromises();
+
+    const btn = document.getElementById('block-btn');
+    expect(btn.disabled).toBe(false);
+    expect(btn.querySelector('.btn-label').textContent).toBe('Unblock');
   });
 });

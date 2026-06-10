@@ -9,6 +9,7 @@ const siteList = document.getElementById("site-list");
 const emptyState = document.getElementById("empty-state");
 const countEl = document.getElementById("count");
 const clearHistoryToggle = document.getElementById("clear-history-toggle");
+const unblockCooldownToggle = document.getElementById("unblock-cooldown-toggle");
 
 const savedList = document.getElementById("saved-list");
 const savedEmptyState = document.getElementById("saved-empty-state");
@@ -18,6 +19,7 @@ const filterSiteSelect = document.getElementById("filter-site-select");
 const filterTypeSelect = document.getElementById("filter-type-select");
 
 let savedEntries = [];
+let unblockCooldown = true;
 
 function normalise(raw) {
   let s = raw.trim().toLowerCase();
@@ -67,7 +69,7 @@ function renderList(entries) {
 
   for (const entry of entries) {
     const remaining = daysLeft(entry.blockedAt);
-    const locked = remaining > 0;
+    const locked = unblockCooldown && remaining > 0;
 
     const li = document.createElement("li");
     li.className = "site-entry";
@@ -228,8 +230,11 @@ async function removeSite(site) {
 }
 
 async function loadSettings() {
-  const { clearHistory = true } = await chrome.storage.sync.get("clearHistory");
+  const { clearHistory = true, unblockCooldown: cooldown = true } =
+    await chrome.storage.sync.get(["clearHistory", "unblockCooldown"]);
   clearHistoryToggle.checked = clearHistory;
+  unblockCooldownToggle.checked = cooldown;
+  unblockCooldown = cooldown;
 }
 
 // Tab switching
@@ -262,14 +267,21 @@ clearHistoryToggle.addEventListener("change", () => {
   chrome.storage.sync.set({ clearHistory: clearHistoryToggle.checked });
 });
 
+unblockCooldownToggle.addEventListener("change", () => {
+  unblockCooldown = unblockCooldownToggle.checked;
+  chrome.storage.sync.set({ unblockCooldown });
+  chrome.storage.sync.get(STORAGE_KEY).then(({ [STORAGE_KEY]: entries = [] }) => {
+    renderList(entries);
+  });
+});
+
 addBtn.addEventListener("click", addSite);
 urlInput.addEventListener("keydown", (e) => {
   if (e.key === "Enter") addSite();
 });
 
-load();
+loadSettings().then(load);
 loadSaved();
-loadSettings();
 
 if (typeof module !== "undefined") {
   module.exports = { normalise, daysLeft, humaniseSite, renderSavedList, removeSavedPage };

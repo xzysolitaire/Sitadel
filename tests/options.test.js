@@ -36,6 +36,7 @@ const OPTIONS_DOM = `
     </ul>
     <span id="count">0</span>
     <input type="checkbox" id="clear-history-toggle" />
+    <input type="checkbox" id="unblock-cooldown-toggle" />
   </div>
 `;
 
@@ -597,5 +598,51 @@ describe('clearHistory toggle', () => {
     toggle.dispatchEvent(new Event('change'));
 
     expect(chrome.storage.sync.set).toHaveBeenCalledWith({ clearHistory: false });
+  });
+});
+
+// ─── unblockCooldown toggle ───────────────────────────────────────────────────
+
+describe('unblockCooldown toggle', () => {
+  beforeEach(async () => {
+    document.body.innerHTML = OPTIONS_DOM;
+    chrome.storage.sync.get.mockResolvedValue({ blockedSites: [], unblockCooldown: true });
+    jest.resetModules();
+    require('../options');
+    await flushPromises();
+  });
+
+  test('checkbox is checked by default (unblockCooldown: true)', () => {
+    expect(document.getElementById('unblock-cooldown-toggle').checked).toBe(true);
+  });
+
+  test('checkbox is unchecked when unblockCooldown is false', async () => {
+    document.body.innerHTML = OPTIONS_DOM;
+    chrome.storage.sync.get.mockResolvedValue({ blockedSites: [], unblockCooldown: false });
+    jest.resetModules();
+    require('../options');
+    await flushPromises();
+
+    expect(document.getElementById('unblock-cooldown-toggle').checked).toBe(false);
+  });
+
+  test('toggling off saves unblockCooldown: false to storage', () => {
+    const toggle = document.getElementById('unblock-cooldown-toggle');
+    toggle.checked = false;
+    toggle.dispatchEvent(new Event('change'));
+
+    expect(chrome.storage.sync.set).toHaveBeenCalledWith({ unblockCooldown: false });
+  });
+
+  test('when cooldown is off, locked sites render with enabled Remove button', async () => {
+    const LOCKED_ENTRY = { site: 'twitter.com', blockedAt: Date.now() + 9999999 };
+    document.body.innerHTML = OPTIONS_DOM;
+    chrome.storage.sync.get.mockResolvedValue({ blockedSites: [LOCKED_ENTRY], unblockCooldown: false });
+    jest.resetModules();
+    require('../options');
+    await flushPromises();
+
+    const buttons = document.querySelectorAll('.remove-btn');
+    expect([...buttons].every((b) => !b.disabled)).toBe(true);
   });
 });

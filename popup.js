@@ -14,6 +14,8 @@ const feedbackEl = document.getElementById("feedback");
 let currentHostname = null;
 let currentTab = null;
 let pageSaved = false;
+let siteBlocked = false;
+let unblockCooldown = true;
 
 
 function setFavicon(favIconUrl) {
@@ -47,12 +49,18 @@ async function init() {
     blockBtn.disabled = false;
     saveBtn.disabled = false;
 
-    const { [STORAGE_KEY]: entries = [], [SAVED_KEY]: savedPages = [] } =
-      await chrome.storage.sync.get([STORAGE_KEY, SAVED_KEY]);
+    const { [STORAGE_KEY]: entries = [], [SAVED_KEY]: savedPages = [], unblockCooldown: cooldown = true } =
+      await chrome.storage.sync.get([STORAGE_KEY, SAVED_KEY, "unblockCooldown"]);
+    unblockCooldown = cooldown;
 
     if (entries.some((e) => e.site === currentHostname)) {
-      blockLabel.textContent = "Blocked";
-      blockBtn.disabled = true;
+      siteBlocked = true;
+      if (unblockCooldown) {
+        blockLabel.textContent = "Blocked";
+        blockBtn.disabled = true;
+      } else {
+        blockLabel.textContent = "Unblock";
+      }
     }
 
     if (savedPages.some((p) => p.url === tab.url)) {
@@ -107,14 +115,29 @@ saveBtn.addEventListener("click", async () => {
 blockBtn.addEventListener("click", async () => {
   if (!currentHostname) return;
   const { [STORAGE_KEY]: entries = [] } = await chrome.storage.sync.get(STORAGE_KEY);
+
+  if (siteBlocked && !unblockCooldown) {
+    const updated = entries.filter((e) => e.site !== currentHostname);
+    await chrome.storage.sync.set({ [STORAGE_KEY]: updated });
+    siteBlocked = false;
+    blockLabel.textContent = "Block";
+    showFeedback(`Unblocked ${currentHostname}`, "success");
+    return;
+  }
+
   if (entries.some((e) => e.site === currentHostname)) {
     showFeedback("Already in block list", "error");
     return;
   }
   const newEntry = { site: currentHostname, blockedAt: Date.now() };
   await chrome.storage.sync.set({ [STORAGE_KEY]: [...entries, newEntry] });
-  blockLabel.textContent = "Blocked";
-  blockBtn.disabled = true;
+  siteBlocked = true;
+  if (unblockCooldown) {
+    blockLabel.textContent = "Blocked";
+    blockBtn.disabled = true;
+  } else {
+    blockLabel.textContent = "Unblock";
+  }
   showFeedback(`Blocked ${currentHostname}`, "success");
 });
 
