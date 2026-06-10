@@ -10,6 +10,7 @@ const OPTIONS_DOM = `
     <select id="filter-site-select"><option value="">All sites</option></select>
     <select id="sort-select">
       <option value="savedAt">Newest first</option>
+      <option value="savedAtAsc">Earliest first</option>
       <option value="name">Name A-Z</option>
     </select>
     <select id="filter-type-select">
@@ -461,6 +462,26 @@ describe('renderSavedList — sort (additional)', () => {
 
     const names = [...document.querySelectorAll('.saved-entry .entry-site')].map((el) => el.textContent);
     expect(names).toEqual(['Youtube', 'Github', 'Arxiv']);
+  });
+
+  test('earliest first sort renders oldest entry first', () => {
+    document.getElementById('sort-select').value = 'savedAtAsc';
+    renderSavedList([e1, e2, e3]);
+
+    const names = [...document.querySelectorAll('.saved-entry .entry-site')].map((el) => el.textContent);
+    expect(names).toEqual(['Arxiv', 'Github', 'Youtube']);
+  });
+
+  test('earliest first is the reverse of newest first', () => {
+    document.getElementById('sort-select').value = 'savedAt';
+    renderSavedList([e1, e2, e3]);
+    const newest = [...document.querySelectorAll('.saved-entry .entry-site')].map((el) => el.textContent);
+
+    document.getElementById('sort-select').value = 'savedAtAsc';
+    renderSavedList([e1, e2, e3]);
+    const earliest = [...document.querySelectorAll('.saved-entry .entry-site')].map((el) => el.textContent);
+
+    expect(earliest).toEqual([...newest].reverse());
   });
 });
 

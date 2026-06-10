@@ -107,6 +107,8 @@ function renderSavedList(entries) {
     filtered = [...filtered].sort((a, b) =>
       (a.title || humaniseSite(a.site)).localeCompare(b.title || humaniseSite(b.site))
     );
+  } else if (sort === "savedAtAsc") {
+    filtered = [...filtered].sort((a, b) => a.savedAt - b.savedAt);
   } else {
     filtered = [...filtered].sort((a, b) => b.savedAt - a.savedAt);
   }
