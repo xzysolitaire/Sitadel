@@ -128,6 +128,72 @@ body {
   overflow: hidden;
 }
 
+/* ── Due-date label ── */
+
+.save-label {
+  font-size: 11px;
+  line-height: 1;
+  text-align: center;
+}
+
+.save-label.label-due {
+  color: #777;
+}
+
+.save-label.label-overdue {
+  color: #b7791f;
+}
+
+.save-label.label-saved {
+  color: #aaa;
+}
+
+/* ── Deadline picker ── */
+
+.deadline-picker {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 5px;
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  margin-top: -12px; /* collapse the container gap when hidden */
+}
+
+.deadline-picker.open {
+  max-height: 90px;
+  opacity: 1;
+  margin-top: 0;
+}
+
+.pill {
+  padding: 5px 10px;
+  border: 1px solid rgba(38, 118, 255, 0.25);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.7);
+  color: #2676ff;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+
+.pill:hover {
+  background: rgba(38, 118, 255, 0.1);
+}
+
+.pill--none {
+  color: #888;
+  border-color: rgba(0, 0, 0, 0.12);
+}
+
+.pill--none:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
 /* ── Action buttons ── */
 
 .action-group {

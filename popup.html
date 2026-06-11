@@ -39,6 +39,8 @@
       </div>
     </div>
 
+    <div id="save-label" class="save-label hidden"></div>
+
     <div class="action-group">
       <button id="save-btn" class="btn btn-save" disabled>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -55,8 +57,18 @@
       </button>
     </div>
 
+    <div id="deadline-picker" class="deadline-picker">
+      <button class="pill" data-option="Tomorrow">Tomorrow</button>
+      <button class="pill" data-option="3 days">3 days</button>
+      <button class="pill" data-option="7 days">7 days</button>
+      <button class="pill" data-option="30 days">30 days</button>
+      <button class="pill" data-option="3 months">3 months</button>
+      <button class="pill pill--none" data-option="none">No deadline</button>
+    </div>
+
     <div id="feedback" class="feedback hidden"></div>
   </div>
+  <script src="readlist-utils.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>
