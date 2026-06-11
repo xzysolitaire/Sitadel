@@ -14,6 +14,7 @@ const OPTIONS_DOM = `
       <div id="open-list-picker" class="open-list-picker hidden"></div>
       <button id="open-list-btn">Open List</button>
     </div>
+    <input type="checkbox" id="auto-unsave-toggle" />
   </div>
 
   <div id="tab-saved" class="tab-panel">
@@ -975,6 +976,66 @@ describe('TO READ Mark read and Remove', () => {
 
     expect(document.querySelectorAll('.toread-entry')).toHaveLength(0);
     expect(document.querySelectorAll('.saved-entry')).toHaveLength(0);
+  });
+});
+
+// ─── auto-unsave on Mark read ────────────────────────────────────────────────
+
+describe('auto-unsave on Mark read', () => {
+  const entry = toreadEntry('https://github.com/foo', Date.now() + DAY_MS / 2);
+  const waitForRowExit = () => new Promise((r) => setTimeout(r, 350));
+
+  async function loadOptions({ autoUnsaveOnRead, savedPages = [entry] } = {}) {
+    document.body.innerHTML = OPTIONS_DOM;
+    chrome.storage.sync.get.mockResolvedValue({ blockedSites: [], savedPages, autoUnsaveOnRead });
+    jest.resetModules();
+    require('../options');
+    await flushPromises();
+  }
+
+  test('toggle is unchecked by default', async () => {
+    await loadOptions();
+    expect(document.getElementById('auto-unsave-toggle').checked).toBe(false);
+  });
+
+  test('toggle reflects a stored true value', async () => {
+    await loadOptions({ autoUnsaveOnRead: true });
+    expect(document.getElementById('auto-unsave-toggle').checked).toBe(true);
+  });
+
+  test('toggling on persists autoUnsaveOnRead: true', async () => {
+    await loadOptions();
+
+    const toggle = document.getElementById('auto-unsave-toggle');
+    toggle.checked = true;
+    toggle.dispatchEvent(new Event('change'));
+
+    expect(chrome.storage.sync.set).toHaveBeenCalledWith({ autoUnsaveOnRead: true });
+  });
+
+  test('Mark read deletes the entry entirely when auto-unsave is on', async () => {
+    await loadOptions({ autoUnsaveOnRead: true });
+
+    document.querySelector('.mark-read-btn').click();
+    await waitForRowExit();
+    await flushPromises();
+
+    expect(chrome.storage.sync.set).toHaveBeenCalledWith({ savedPages: [] });
+    expect(document.querySelectorAll('.toread-entry')).toHaveLength(0);
+    expect(document.querySelectorAll('.saved-entry')).toHaveLength(0);
+  });
+
+  test('Mark read keeps the entry in Saved when auto-unsave is off', async () => {
+    await loadOptions({ autoUnsaveOnRead: false });
+
+    document.querySelector('.mark-read-btn').click();
+    await waitForRowExit();
+    await flushPromises();
+
+    const saved = chrome.storage.sync.set.mock.calls[0][0].savedPages;
+    expect(saved).toHaveLength(1);
+    expect(saved[0]).not.toHaveProperty('readBy');
+    expect(document.querySelectorAll('.saved-entry')).toHaveLength(1);
   });
 });
 

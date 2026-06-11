@@ -464,6 +464,18 @@ describe('readlist: mark read', () => {
     expect(document.querySelector('#block-btn .btn-label').textContent).toBe('Unsave');
   });
 
+  test('deletes the entry and restores Save · Block when auto-unsave is enabled', async () => {
+    chrome.storage.sync.get.mockResolvedValue({ savedPages: [entry], autoUnsaveOnRead: true });
+    document.getElementById('save-btn').click();
+    await flushPromises();
+
+    expect(chrome.storage.sync.set).toHaveBeenCalledWith({ savedPages: [] });
+    expect(saveLabelText()).toBe('Save');
+    expect(document.querySelector('#block-btn .btn-label').textContent).toBe('Block');
+    expect(document.getElementById('save-label').classList.contains('hidden')).toBe(true);
+    expect(document.getElementById('feedback').textContent).toBe('Marked read');
+  });
+
   test('label crossfades from due text to saved text on Mark read', async () => {
     expect(document.getElementById('save-label').textContent).toMatch(/^Due in/);
 

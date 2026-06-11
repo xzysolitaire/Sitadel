@@ -15,6 +15,7 @@ const emptyState = document.getElementById("empty-state");
 const countEl = document.getElementById("count");
 const clearHistoryToggle = document.getElementById("clear-history-toggle");
 const unblockCooldownToggle = document.getElementById("unblock-cooldown-toggle");
+const autoUnsaveToggle = document.getElementById("auto-unsave-toggle");
 
 const savedList = document.getElementById("saved-list");
 const savedEmptyState = document.getElementById("saved-empty-state");
@@ -32,6 +33,7 @@ const openListBtn = document.getElementById("open-list-btn");
 
 let savedEntries = [];
 let unblockCooldown = true;
+let autoUnsaveOnRead = false;
 
 function normalise(raw) {
   let s = raw.trim().toLowerCase();
@@ -432,6 +434,10 @@ async function setPageDeadline(url, option) {
 }
 
 async function markPageRead(url) {
+  if (autoUnsaveOnRead) {
+    await removeSavedPage(url);
+    return;
+  }
   savedEntries = savedEntries.map((p) => {
     if (p.url !== url) return p;
     const { readBy, ...rest } = p;
@@ -498,11 +504,13 @@ async function removeSite(site) {
 }
 
 async function loadSettings() {
-  const { clearHistory = true, unblockCooldown: cooldown = true } =
-    await chrome.storage.sync.get(["clearHistory", "unblockCooldown"]);
+  const { clearHistory = true, unblockCooldown: cooldown = true, autoUnsaveOnRead: autoUnsave = false } =
+    await chrome.storage.sync.get(["clearHistory", "unblockCooldown", "autoUnsaveOnRead"]);
   clearHistoryToggle.checked = clearHistory;
   unblockCooldownToggle.checked = cooldown;
   unblockCooldown = cooldown;
+  if (autoUnsaveToggle) autoUnsaveToggle.checked = autoUnsave;
+  autoUnsaveOnRead = autoUnsave;
 }
 
 // Tab switching
@@ -536,6 +544,11 @@ chrome.storage.onChanged.addListener((changes, area) => {
 
 clearHistoryToggle.addEventListener("change", () => {
   chrome.storage.sync.set({ clearHistory: clearHistoryToggle.checked });
+});
+
+autoUnsaveToggle?.addEventListener("change", () => {
+  autoUnsaveOnRead = autoUnsaveToggle.checked;
+  chrome.storage.sync.set({ autoUnsaveOnRead });
 });
 
 unblockCooldownToggle.addEventListener("change", () => {

@@ -230,7 +230,19 @@ async function handleDeadlineOption(option) {
 }
 
 async function handleMarkRead() {
-  const { [SAVED_KEY]: saved = [] } = await chrome.storage.sync.get(SAVED_KEY);
+  const { [SAVED_KEY]: saved = [], autoUnsaveOnRead = false } =
+    await chrome.storage.sync.get([SAVED_KEY, "autoUnsaveOnRead"]);
+
+  if (autoUnsaveOnRead) {
+    await chrome.storage.sync.set({
+      [SAVED_KEY]: saved.filter((p) => p.url !== currentTab.url),
+    });
+    hideSaveLabel();
+    setSaveState("save");
+    showFeedback("Marked read", "success");
+    return;
+  }
+
   let plainEntry = null;
   const updated = saved.map((p) => {
     if (p.url !== currentTab.url) return p;
