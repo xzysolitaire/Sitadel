@@ -203,7 +203,14 @@ const TOREAD_SECTIONS = [
   ["backlog", "Backlog"],
 ];
 
-const DEADLINE_OPTIONS = ["Tomorrow", "3 days", "7 days", "30 days", "3 months"];
+const ROLLER_OPTIONS = [
+  { label: "—", days: null },
+  { label: "+1 day", days: 1 },
+  { label: "+3 days", days: 3 },
+  { label: "+7 days", days: 7 },
+  { label: "+30 days", days: 30 },
+  { label: "Remove deadline", days: -1 },
+];
 
 // URLs present in the previous render — rows already on screen must not
 // replay the entry animation when the list is rebuilt.
@@ -336,7 +343,7 @@ function buildToReadItem(entry, sectionKey, isNew) {
       const daysLeft = Math.ceil((entry.readBy - Date.now()) / (24 * 60 * 60 * 1000));
       chip.textContent = daysLeft <= 0 ? "Due today" : `Due in ${daysLeft} ${daysLeft === 1 ? "day" : "days"}`;
     }
-    chip.addEventListener("click", () => expandDeadlinePills(chip, entry));
+    chip.addEventListener("click", () => openRollingPicker(chip, entry));
     actions.appendChild(chip);
   }
 
@@ -385,25 +392,73 @@ function animateRowOut(li) {
   });
 }
 
-function expandDeadlinePills(chip, entry) {
-  const pills = document.createElement("div");
-  pills.className = "deadline-pills";
+let activeRoller = null;
 
-  for (const option of DEADLINE_OPTIONS) {
+function closeRollingPicker() {
+  if (activeRoller) {
+    activeRoller.remove();
+    activeRoller = null;
+  }
+}
+
+function openRollingPicker(chip, entry) {
+  closeRollingPicker();
+
+  const roller = document.createElement("div");
+  roller.className = "deadline-roller";
+
+  const rect = chip.getBoundingClientRect();
+  roller.style.top = `${rect.bottom + 4 + window.scrollY}px`;
+  roller.style.left = `${rect.left + window.scrollX}px`;
+
+  for (const { label, days } of ROLLER_OPTIONS) {
     const btn = document.createElement("button");
-    btn.className = "deadline-pill";
-    btn.textContent = option;
-    btn.addEventListener("click", () => setPageDeadline(entry.url, option));
-    pills.appendChild(btn);
+    btn.className = "deadline-roller-option";
+    if (days === null) btn.classList.add("deadline-roller-option--noop");
+    if (days === -1) btn.classList.add("deadline-roller-option--remove");
+    btn.textContent = label;
+    btn.addEventListener("click", () => {
+      closeRollingPicker();
+      if (days === null) return;
+      if (days === -1) {
+        removeDeadline(entry.url);
+      } else {
+        applyRollerDays(entry.url, days);
+      }
+    });
+    roller.appendChild(btn);
   }
 
-  const cancel = document.createElement("button");
-  cancel.className = "deadline-pill deadline-pill--cancel";
-  cancel.textContent = "Cancel";
-  cancel.addEventListener("click", () => pills.replaceWith(chip));
-  pills.appendChild(cancel);
+  document.body.appendChild(roller);
+  activeRoller = roller;
 
-  chip.replaceWith(pills);
+  const onOutside = (e) => {
+    if (!roller.contains(e.target) && e.target !== chip) {
+      closeRollingPicker();
+      document.removeEventListener("click", onOutside, true);
+    }
+  };
+  // Use capture so the handler runs before any other click handlers
+  setTimeout(() => document.addEventListener("click", onOutside, true), 0);
+}
+
+async function applyRollerDays(url, days) {
+  const readBy = Date.now() + days * 24 * 60 * 60 * 1000;
+  savedEntries = savedEntries.map((p) => (p.url === url ? { ...p, readBy } : p));
+  await chrome.storage.sync.set({ [SAVED_KEY]: savedEntries });
+  renderToReadList(savedEntries);
+  renderSavedList(savedEntries);
+}
+
+async function removeDeadline(url) {
+  savedEntries = savedEntries.map((p) => {
+    if (p.url !== url) return p;
+    const { readBy, ...rest } = p;
+    return rest;
+  });
+  await chrome.storage.sync.set({ [SAVED_KEY]: savedEntries });
+  renderToReadList(savedEntries);
+  renderSavedList(savedEntries);
 }
 
 function openOpenListPicker() {

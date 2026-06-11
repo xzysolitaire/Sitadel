@@ -931,9 +931,9 @@ describe('renderToReadList', () => {
   });
 });
 
-// ─── inline deadline editing ─────────────────────────────────────────────────
+// ─── rolling days picker ──────────────────────────────────────────────────────
 
-describe('inline deadline editing', () => {
+describe('rolling days picker', () => {
   const entry = toreadEntry('https://github.com/foo', Date.now() + DAY_MS / 2);
 
   beforeEach(async () => {
@@ -944,18 +944,26 @@ describe('inline deadline editing', () => {
     await flushPromises();
   });
 
-  test('clicking the deadline chip replaces it with a pill-row', () => {
+  test('clicking the chip opens a roller with the expected options', () => {
     document.querySelector('.deadline-chip').click();
 
-    const pills = [...document.querySelectorAll('.deadline-pill')].map((p) => p.textContent);
-    expect(pills).toEqual(['Tomorrow', '3 days', '7 days', '30 days', '3 months', 'Cancel']);
-    expect(document.querySelector('.deadline-chip')).toBeNull();
+    const options = [...document.querySelectorAll('.deadline-roller-option')].map((o) => o.textContent);
+    expect(options).toEqual(['—', '+1 day', '+3 days', '+7 days', '+30 days', 'Remove deadline']);
   });
 
-  test('selecting an option writes the new readBy to storage', async () => {
+  test('"—" closes the roller without writing to storage', async () => {
     document.querySelector('.deadline-chip').click();
-    const sevenDays = [...document.querySelectorAll('.deadline-pill')].find((p) => p.textContent === '7 days');
-    sevenDays.click();
+    document.querySelector('.deadline-roller-option--noop').click();
+    await flushPromises();
+
+    expect(chrome.storage.sync.set).not.toHaveBeenCalled();
+    expect(document.querySelector('.deadline-roller')).toBeNull();
+  });
+
+  test('selecting "+7 days" sets readBy to 7 days from now', async () => {
+    document.querySelector('.deadline-chip').click();
+    [...document.querySelectorAll('.deadline-roller-option')]
+      .find((o) => o.textContent === '+7 days').click();
     await flushPromises();
 
     const saved = chrome.storage.sync.set.mock.calls[0][0].savedPages[0];
@@ -963,23 +971,42 @@ describe('inline deadline editing', () => {
     expect(saved.readBy).toBeLessThanOrEqual(Date.now() + 7 * DAY_MS);
   });
 
-  test('selecting an option collapses the pill-row and re-renders', async () => {
+  test('selecting "+7 days" closes the roller and re-renders the chip', async () => {
     document.querySelector('.deadline-chip').click();
-    [...document.querySelectorAll('.deadline-pill')].find((p) => p.textContent === '7 days').click();
+    [...document.querySelectorAll('.deadline-roller-option')]
+      .find((o) => o.textContent === '+7 days').click();
     await flushPromises();
 
-    expect(document.querySelector('.deadline-pills')).toBeNull();
+    expect(document.querySelector('.deadline-roller')).toBeNull();
     expect(document.querySelector('.deadline-chip')).not.toBeNull();
   });
 
-  test('Cancel restores the chip without writing to storage', async () => {
+  test('"Remove deadline" clears readBy and re-renders', async () => {
     document.querySelector('.deadline-chip').click();
-    [...document.querySelectorAll('.deadline-pill')].find((p) => p.textContent === 'Cancel').click();
+    document.querySelector('.deadline-roller-option--remove').click();
     await flushPromises();
 
-    expect(chrome.storage.sync.set).not.toHaveBeenCalled();
-    expect(document.querySelector('.deadline-chip')).not.toBeNull();
-    expect(document.querySelector('.deadline-pills')).toBeNull();
+    const saved = chrome.storage.sync.set.mock.calls[0][0].savedPages[0];
+    expect(saved).not.toHaveProperty('readBy');
+    expect(document.querySelector('.deadline-roller')).toBeNull();
+  });
+
+  test('opening a second roller closes the first', () => {
+    const entries2 = [
+      toreadEntry('u1', Date.now() + DAY_MS / 2),
+      toreadEntry('u2', Date.now() + 2 * DAY_MS),
+    ];
+    document.body.innerHTML = OPTIONS_DOM;
+    chrome.storage.sync.get.mockResolvedValue({ blockedSites: [], savedPages: entries2 });
+    jest.resetModules();
+    require('../options');
+    return flushPromises().then(() => {
+      const chips = document.querySelectorAll('.deadline-chip');
+      chips[0].click();
+      expect(document.querySelectorAll('.deadline-roller')).toHaveLength(1);
+      chips[1].click();
+      expect(document.querySelectorAll('.deadline-roller')).toHaveLength(1);
+    });
   });
 });
 
