@@ -621,6 +621,77 @@ select {
   color: #c53030;
 }
 
+/* Open List */
+.open-list-area {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.open-list-area.hidden {
+  display: none;
+}
+
+.btn-open-list {
+  background: #3182ce;
+  color: #fff;
+  align-self: flex-start;
+}
+
+.btn-open-list:hover {
+  background: #2b6cb0;
+}
+
+.open-list-picker {
+  background: #fff;
+  border-radius: 10px;
+  padding: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.07);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.open-list-picker.hidden {
+  display: none;
+}
+
+.open-list-choices {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.open-list-choices label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: #222;
+  cursor: pointer;
+}
+
+.open-list-confirm-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.open-list-cancel {
+  border: none;
+  background: none;
+  color: #999;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.open-list-cancel:hover {
+  color: #555;
+}
+
 /* Remove button override for saved entries */
 .saved-entry .remove-btn {
   width: 28px;

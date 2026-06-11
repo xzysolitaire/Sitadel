@@ -26,6 +26,9 @@ const filterTypeSelect = document.getElementById("filter-type-select");
 const toreadSectionsEl = document.getElementById("toread-sections");
 const toreadEmptyState = document.getElementById("toread-empty-state");
 const toreadBadge = document.getElementById("toread-badge");
+const openListArea = document.getElementById("open-list-area");
+const openListPickerEl = document.getElementById("open-list-picker");
+const openListBtn = document.getElementById("open-list-btn");
 
 let savedEntries = [];
 let unblockCooldown = true;
@@ -211,6 +214,10 @@ function renderToReadList(entries) {
     toreadBadge.classList.toggle("hidden", toread.length === 0);
   }
   toreadEmptyState.style.display = toread.length === 0 ? "block" : "none";
+  if (openListArea) {
+    openListArea.classList.toggle("hidden", toread.length === 0);
+    if (toread.length === 0) closeOpenListPicker();
+  }
   toreadSectionsEl.textContent = "";
 
   for (const [key, label] of TOREAD_SECTIONS) {
@@ -325,6 +332,72 @@ function expandDeadlinePills(chip, entry) {
 
   chip.replaceWith(pills);
 }
+
+function openOpenListPicker() {
+  const toread = savedEntries
+    .filter((p) => p.readBy != null)
+    .sort((a, b) => a.readBy - b.readBy);
+  const imminent = new Set(computeImminentSet(toread).map((p) => p.url));
+
+  openListPickerEl.textContent = "";
+
+  const list = document.createElement("ul");
+  list.className = "open-list-choices";
+  for (const entry of toread) {
+    const li = document.createElement("li");
+    const label = document.createElement("label");
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.value = entry.url;
+    checkbox.checked = imminent.has(entry.url);
+    checkbox.addEventListener("change", updateOpenSelectedLabel);
+    const title = document.createElement("span");
+    title.textContent = entry.title || humaniseSite(entry.site);
+    label.appendChild(checkbox);
+    label.appendChild(title);
+    li.appendChild(label);
+    list.appendChild(li);
+  }
+  openListPickerEl.appendChild(list);
+
+  const row = document.createElement("div");
+  row.className = "open-list-confirm-row";
+
+  const confirmBtn = document.createElement("button");
+  confirmBtn.id = "open-selected-btn";
+  confirmBtn.className = "btn btn-open-list";
+  confirmBtn.addEventListener("click", async () => {
+    const urls = [...openListPickerEl.querySelectorAll("input:checked")].map((c) => c.value);
+    if (urls.length > 0) await chrome.windows.create({ url: urls });
+    closeOpenListPicker();
+  });
+
+  const cancelLink = document.createElement("button");
+  cancelLink.className = "open-list-cancel";
+  cancelLink.textContent = "Cancel";
+  cancelLink.addEventListener("click", closeOpenListPicker);
+
+  row.appendChild(confirmBtn);
+  row.appendChild(cancelLink);
+  openListPickerEl.appendChild(row);
+
+  updateOpenSelectedLabel();
+  openListPickerEl.classList.remove("hidden");
+}
+
+function updateOpenSelectedLabel() {
+  const count = openListPickerEl.querySelectorAll("input:checked").length;
+  const btn = openListPickerEl.querySelector("#open-selected-btn");
+  if (btn) btn.textContent = `Open Selected (${count})`;
+}
+
+function closeOpenListPicker() {
+  if (!openListPickerEl) return;
+  openListPickerEl.textContent = "";
+  openListPickerEl.classList.add("hidden");
+}
+
+openListBtn?.addEventListener("click", openOpenListPicker);
 
 async function setPageDeadline(url, option) {
   const readBy = deadlineFromOption(option);
