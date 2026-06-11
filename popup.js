@@ -53,11 +53,13 @@ async function init() {
     if (entries.some((e) => e.site === currentHostname)) {
       blockLabel.textContent = "Blocked";
       blockBtn.disabled = true;
+      saveBtn.disabled = true;
     }
 
     if (savedPages.some((p) => p.url === tab.url)) {
       pageSaved = true;
       saveLabel.textContent = "Unsave";
+      blockBtn.disabled = true;
     }
   } catch {
     // non-navigable tab
@@ -74,6 +76,7 @@ saveBtn.addEventListener("click", async () => {
     });
     pageSaved = false;
     saveLabel.textContent = "Save";
+    blockBtn.disabled = blockLabel.textContent === "Blocked";
     showFeedback("Unsaved", "success");
     return;
   }
@@ -101,6 +104,7 @@ saveBtn.addEventListener("click", async () => {
   await chrome.storage.sync.set({ [SAVED_KEY]: [...saved, newEntry] });
   pageSaved = true;
   saveLabel.textContent = "Unsave";
+  blockBtn.disabled = true;
   showFeedback("Saved!", "success");
 });
 
@@ -115,6 +119,7 @@ blockBtn.addEventListener("click", async () => {
   await chrome.storage.sync.set({ [STORAGE_KEY]: [...entries, newEntry] });
   blockLabel.textContent = "Blocked";
   blockBtn.disabled = true;
+  saveBtn.disabled = true;
   showFeedback(`Blocked ${currentHostname}`, "success");
 });
 
