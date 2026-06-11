@@ -7,12 +7,14 @@ const POPUP_DOM = `
   <button id="block-btn" disabled><span class="btn-label">Block this site</span></button>
   <button id="options-btn">Options</button>
   <div id="deadline-picker" class="deadline-picker">
-    <button class="pill" data-option="Tomorrow">Tomorrow</button>
-    <button class="pill" data-option="3 days">3 days</button>
-    <button class="pill" data-option="7 days">7 days</button>
-    <button class="pill" data-option="30 days">30 days</button>
-    <button class="pill" data-option="3 months">3 months</button>
-    <button class="pill pill--none" data-option="none">No deadline</button>
+    <div class="deadline-picker-inner">
+      <button class="pill" data-option="Tomorrow">Tomorrow</button>
+      <button class="pill" data-option="3 days">3 days</button>
+      <button class="pill" data-option="7 days">7 days</button>
+      <button class="pill" data-option="30 days">30 days</button>
+      <button class="pill" data-option="3 months">3 months</button>
+      <button class="pill pill--none" data-option="none">No deadline</button>
+    </div>
   </div>
   <div id="feedback" class="feedback hidden"></div>
 `;
@@ -522,7 +524,7 @@ describe('readlist: due-date label', () => {
     expect(labelEl().classList.contains('label-overdue')).toBe(true);
   });
 
-  test('appears with saved text immediately after Save tap', async () => {
+  test('stays hidden after a Save tap in the same session', async () => {
     setupPopup(TAB_URL);
     await flushPromises();
 
@@ -530,8 +532,24 @@ describe('readlist: due-date label', () => {
     document.getElementById('save-btn').click();
     await flushPromises();
 
+    expect(labelEl().classList.contains('hidden')).toBe(true);
+  });
+
+  test('appears once a deadline is picked after saving', async () => {
+    setupPopup(TAB_URL);
+    await flushPromises();
+
+    chrome.storage.sync.get.mockResolvedValue({ savedPages: [] });
+    document.getElementById('save-btn').click(); // Save → Undo state
+    await flushPromises();
+
+    const written = chrome.storage.sync.set.mock.calls[0][0].savedPages;
+    chrome.storage.sync.get.mockResolvedValue({ savedPages: written });
+    document.querySelector('.pill[data-option="3 days"]').click();
+    await flushPromises();
+
     expect(labelEl().classList.contains('hidden')).toBe(false);
-    expect(labelEl().textContent).toMatch(/^Saved /);
+    expect(labelEl().textContent).toMatch(/^Due in 3 days · /);
   });
 });
 
