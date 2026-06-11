@@ -534,3 +534,75 @@ describe('readlist: due-date label', () => {
     expect(labelEl().textContent).toMatch(/^Saved /);
   });
 });
+
+// ─── block button × saved page ───────────────────────────────────────────────
+
+describe('block button is disabled while the page is saved', () => {
+  const TAB_URL = 'https://github.com/foo';
+  const entry = { url: TAB_URL, site: 'github.com', pageType: 'article', savedAt: 1 };
+  const blockBtn = () => document.getElementById('block-btn');
+
+  test('disabled on init when the page is saved without a deadline', async () => {
+    setupPopup(TAB_URL, [], [entry]);
+    await flushPromises();
+
+    expect(blockBtn().disabled).toBe(true);
+  });
+
+  test('disabled on init when the page is saved with a deadline', async () => {
+    setupPopup(TAB_URL, [], [{ ...entry, readBy: Date.now() + DAY_MS }]);
+    await flushPromises();
+
+    expect(blockBtn().disabled).toBe(true);
+  });
+
+  test('becomes disabled after a Save tap', async () => {
+    setupPopup(TAB_URL);
+    await flushPromises();
+    expect(blockBtn().disabled).toBe(false);
+
+    chrome.storage.sync.get.mockResolvedValue({ savedPages: [] });
+    document.getElementById('save-btn').click();
+    await flushPromises();
+
+    expect(blockBtn().disabled).toBe(true);
+  });
+
+  test('re-enables after Undo', async () => {
+    setupPopup(TAB_URL);
+    await flushPromises();
+
+    chrome.storage.sync.get.mockResolvedValue({ savedPages: [] });
+    document.getElementById('save-btn').click(); // Save
+    await flushPromises();
+    document.getElementById('save-btn').click(); // Undo
+    await flushPromises();
+
+    expect(blockBtn().disabled).toBe(false);
+  });
+
+  test('re-enables after Unsave', async () => {
+    const dueEntry = { ...entry, readBy: Date.now() + DAY_MS };
+    setupPopup(TAB_URL, [], [dueEntry]);
+    await flushPromises();
+
+    chrome.storage.sync.get.mockResolvedValue({ savedPages: [dueEntry] });
+    document.getElementById('save-btn').click(); // Mark read
+    await flushPromises();
+    expect(blockBtn().disabled).toBe(true);
+
+    chrome.storage.sync.get.mockResolvedValue({ savedPages: [entry] });
+    document.getElementById('save-btn').click(); // Unsave
+    await flushPromises();
+
+    expect(blockBtn().disabled).toBe(false);
+  });
+
+  test('stays disabled with Blocked label when the site itself is blocked', async () => {
+    setupPopup(TAB_URL, [{ site: 'github.com', blockedAt: 0 }], [entry]);
+    await flushPromises();
+
+    expect(blockBtn().disabled).toBe(true);
+    expect(blockBtn().textContent).toBe('Blocked');
+  });
+});

@@ -20,6 +20,7 @@ const feedbackEl = document.getElementById("feedback");
 
 let currentHostname = null;
 let currentTab = null;
+let siteBlocked = false;
 let saveState = "save"; // save | undo | readlist | markread | unsave
 let undoTimer = null;
 
@@ -57,6 +58,11 @@ function setSaveState(state) {
     }, 320);
   }
   saveStateInitialised = true;
+
+  // Blocking is only available while the page is not saved
+  if (!siteBlocked && currentTab) {
+    blockBtn.disabled = state !== "save";
+  }
 }
 
 function showSaveLabel(entry, { crossfade = false } = {}) {
@@ -121,12 +127,15 @@ async function init() {
     if (entries.some((e) => e.site === currentHostname)) {
       blockLabel.textContent = "Blocked";
       blockBtn.disabled = true;
+      siteBlocked = true;
     }
 
     const entry = savedPages.find((p) => p.url === tab.url);
     if (entry) {
       setSaveState(entry.readBy != null ? "markread" : "readlist");
       showSaveLabel(entry);
+    } else {
+      setSaveState("save");
     }
   } catch {
     // non-navigable tab
@@ -247,6 +256,7 @@ blockBtn.addEventListener("click", async () => {
   await chrome.storage.sync.set({ [STORAGE_KEY]: [...entries, newEntry] });
   blockLabel.textContent = "Blocked";
   blockBtn.disabled = true;
+  siteBlocked = true;
   showFeedback(`Blocked ${currentHostname}`, "success");
 });
 
