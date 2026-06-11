@@ -1,4 +1,6 @@
 const flushPromises = () => new Promise((r) => setImmediate(r));
+// The roller fades out before it leaves the DOM (200ms fallback in jsdom).
+const waitRollerExit = () => new Promise((r) => setTimeout(r, 220));
 
 const OPTIONS_DOM = `
   <div class="segmented">
@@ -1014,10 +1016,23 @@ describe('rolling days picker', () => {
     expect(options).toEqual(['—', '+1 day', '+3 days', '+7 days', '+30 days', 'Remove deadline']);
   });
 
+  test('the roller gets the open class so it animates in', () => {
+    document.querySelector('.deadline-chip').click();
+    expect(document.querySelector('.deadline-roller').classList.contains('deadline-roller--open')).toBe(true);
+  });
+
+  test('closing removes the open class to animate out before removal', () => {
+    document.querySelector('.deadline-chip').click();
+    const roller = document.querySelector('.deadline-roller');
+    document.querySelector('.deadline-chip').click(); // toggle closed
+    expect(roller.classList.contains('deadline-roller--open')).toBe(false);
+  });
+
   test('"—" closes the roller without writing to storage', async () => {
     document.querySelector('.deadline-chip').click();
     document.querySelector('.deadline-roller-option--noop').click();
     await flushPromises();
+    await waitRollerExit();
 
     expect(chrome.storage.sync.set).not.toHaveBeenCalled();
     expect(document.querySelector('.deadline-roller')).toBeNull();
@@ -1039,6 +1054,7 @@ describe('rolling days picker', () => {
     [...document.querySelectorAll('.deadline-roller-option')]
       .find((o) => o.textContent === '+7 days').click();
     await flushPromises();
+    await waitRollerExit();
 
     expect(document.querySelector('.deadline-roller')).toBeNull();
     expect(document.querySelector('.deadline-chip')).not.toBeNull();
@@ -1048,16 +1064,18 @@ describe('rolling days picker', () => {
     document.querySelector('.deadline-chip').click();
     document.querySelector('.deadline-roller-option--remove').click();
     await flushPromises();
+    await waitRollerExit();
 
     const saved = chrome.storage.sync.set.mock.calls[0][0].savedPages[0];
     expect(saved).not.toHaveProperty('readBy');
     expect(document.querySelector('.deadline-roller')).toBeNull();
   });
 
-  test('tapping the chip again dismisses the picker', () => {
+  test('tapping the chip again dismisses the picker', async () => {
     document.querySelector('.deadline-chip').click();
     expect(document.querySelector('.deadline-roller')).not.toBeNull();
     document.querySelector('.deadline-chip').click();
+    await waitRollerExit();
     expect(document.querySelector('.deadline-roller')).toBeNull();
   });
 
@@ -1119,6 +1137,7 @@ describe('Backlog add-deadline picker', () => {
 
     // The second tap lands on the inner SVG icon, as it does in the browser
     btn.querySelector('svg').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await waitRollerExit();
     expect(document.querySelector('.deadline-roller')).toBeNull();
   });
 

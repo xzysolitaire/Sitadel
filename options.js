@@ -507,9 +507,24 @@ let activeRoller = null;
 let activeChip = null;
 let activeRollerCloseHandler = null;
 
-function closeRollingPicker() {
+// Fade/scale the roller out, then drop it from the DOM. transitionend drives
+// removal in the browser; the timeout is a fallback for jsdom and interrupted
+// transitions. Pass animate=false to remove instantly (e.g. when one picker
+// replaces another, so the two never overlap on screen).
+function dismissRoller(roller, animate) {
+  if (!animate) {
+    roller.remove();
+    return;
+  }
+  roller.classList.remove("deadline-roller--open");
+  const done = () => roller.remove();
+  roller.addEventListener("transitionend", done, { once: true });
+  setTimeout(done, 200);
+}
+
+function closeRollingPicker(animate = true) {
   if (activeRoller) {
-    activeRoller.remove();
+    dismissRoller(activeRoller, animate);
     activeRoller = null;
     activeChip = null;
   }
@@ -525,7 +540,7 @@ function openRollingPicker(anchor, options) {
     closeRollingPicker();
     return;
   }
-  closeRollingPicker();
+  closeRollingPicker(false);
 
   const roller = document.createElement("div");
   roller.className = "deadline-roller";
@@ -548,6 +563,10 @@ function openRollingPicker(anchor, options) {
   }
 
   document.body.appendChild(roller);
+  // Force a reflow so the starting (hidden) state is committed before we add
+  // the open class — otherwise the browser skips straight to the end state.
+  void roller.offsetWidth;
+  roller.classList.add("deadline-roller--open");
   activeRoller = roller;
   activeChip = anchor;
 

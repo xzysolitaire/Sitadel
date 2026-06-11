@@ -603,6 +603,15 @@ select {
   padding: 5px 0;
   min-width: 148px;
   overflow: hidden;
+  opacity: 0;
+  transform: translateY(-4px) scale(0.97);
+  transform-origin: top left;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.deadline-roller--open {
+  opacity: 1;
+  transform: translateY(0) scale(1);
 }
 
 .deadline-roller-option {
