@@ -128,6 +128,12 @@ input[type="text"]:focus {
   color: #333;
 }
 
+/* The Open List button is short and left-aligned, so the Settings card needs
+   extra separation to match the breathing room on the Blocked tab. */
+#tab-toread .settings-section {
+  margin-top: 16px;
+}
+
 .toggle-row {
   display: flex;
   align-items: center;
