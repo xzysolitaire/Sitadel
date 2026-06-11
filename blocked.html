@@ -139,6 +139,61 @@
       border-radius: 999px;
       padding: 1px 8px;
     }
+
+    /* Open List */
+    .btn-open-list {
+      margin-top: 16px;
+      background: #3182ce;
+      color: #fff;
+    }
+
+    .btn-open-list:hover { background: #2b6cb0; }
+
+    .open-list-picker {
+      margin-top: 16px;
+      background: #f8f9fb;
+      border-radius: 10px;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .open-list-picker[hidden] { display: none; }
+
+    .open-list-choices {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .open-list-choices label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: #222;
+      cursor: pointer;
+    }
+
+    .open-list-confirm-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .open-list-cancel {
+      border: none;
+      background: none;
+      color: #999;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: underline;
+    }
+
+    .open-list-cancel:hover { color: #555; }
   </style>
 </head>
 <body>
@@ -155,6 +210,8 @@
     <div id="toread-section" class="toread-section" hidden>
       <h2>Your reading list</h2>
       <ul id="toread-list" class="toread-list"></ul>
+      <div id="open-list-picker" class="open-list-picker" hidden></div>
+      <button id="open-list-btn" class="btn btn-open-list">Open List</button>
     </div>
   </div>
   <script src="readlist-utils.js"></script>
