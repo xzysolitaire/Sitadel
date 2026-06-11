@@ -203,14 +203,29 @@ const TOREAD_SECTIONS = [
   ["backlog", "Backlog"],
 ];
 
-const ROLLER_OPTIONS = [
-  { label: "—", days: null },
-  { label: "+1 day", days: 1 },
-  { label: "+3 days", days: 3 },
-  { label: "+7 days", days: 7 },
-  { label: "+30 days", days: 30 },
-  { label: "Remove deadline", days: -1 },
-];
+// Roller options for a row that already has a deadline: roll it forward by a
+// fixed amount, leave it (—), or drop the deadline entirely.
+function adjustDeadlineOptions(entry) {
+  return [
+    { label: "—", variant: "noop" },
+    { label: "+1 day", run: () => applyRollerDays(entry.url, 1) },
+    { label: "+3 days", run: () => applyRollerDays(entry.url, 3) },
+    { label: "+7 days", run: () => applyRollerDays(entry.url, 7) },
+    { label: "+30 days", run: () => applyRollerDays(entry.url, 30) },
+    { label: "Remove deadline", variant: "remove", run: () => removeDeadline(entry.url) },
+  ];
+}
+
+// Roller options for a Backlog row (no deadline yet): the Add-to-readlist
+// options minus "No deadline".
+const ADD_DEADLINE_OPTIONS = ["Tomorrow", "3 days", "7 days", "30 days", "3 months"];
+
+function addDeadlineOptions(entry) {
+  return ADD_DEADLINE_OPTIONS.map((option) => ({
+    label: option,
+    run: () => setPageDeadline(entry.url, option),
+  }));
+}
 
 // URLs present in the previous render — rows already on screen must not
 // replay the entry animation when the list is rebuilt.
@@ -220,6 +235,8 @@ let renderedToReadUrls = new Set();
 let collapsedSections = new Set(["backlog"]);
 
 const CHEVRON_SVG = `<svg class="collapse-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>`;
+
+const CLOCK_SVG = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>`;
 
 // A collapsible section shell matching the Blocked list pattern. The caller
 // fills the inner `.toread-list`.
@@ -425,7 +442,7 @@ function buildToReadItem(entry, sectionKey, isNew) {
       const daysLeft = Math.ceil((entry.readBy - Date.now()) / (24 * 60 * 60 * 1000));
       chip.textContent = daysLeft <= 0 ? "Due today" : `Due in ${daysLeft} ${daysLeft === 1 ? "day" : "days"}`;
     }
-    chip.addEventListener("click", () => openRollingPicker(chip, entry));
+    chip.addEventListener("click", () => openRollingPicker(chip, adjustDeadlineOptions(entry)));
     actions.appendChild(chip);
   }
 
@@ -440,6 +457,18 @@ function buildToReadItem(entry, sectionKey, isNew) {
       markPageRead(entry.url);
     });
     actions.appendChild(markReadBtn);
+  }
+
+  // 🕐 Add deadline: only for Backlog rows — promotes the page onto the list
+  if (sectionKey === "backlog") {
+    const addDeadlineBtn = document.createElement("button");
+    addDeadlineBtn.className = "add-deadline-btn";
+    addDeadlineBtn.title = "Add deadline";
+    addDeadlineBtn.innerHTML = CLOCK_SVG;
+    addDeadlineBtn.addEventListener("click", () =>
+      openRollingPicker(addDeadlineBtn, addDeadlineOptions(entry))
+    );
+    actions.appendChild(addDeadlineBtn);
   }
 
   const removeBtn = document.createElement("button");
@@ -490,9 +519,9 @@ function closeRollingPicker() {
   }
 }
 
-function openRollingPicker(chip, entry) {
-  // Tapping the same chip again toggles the picker closed
-  if (activeChip === chip) {
+function openRollingPicker(anchor, options) {
+  // Tapping the same anchor again toggles the picker closed
+  if (activeChip === anchor) {
     closeRollingPicker();
     return;
   }
@@ -501,34 +530,32 @@ function openRollingPicker(chip, entry) {
   const roller = document.createElement("div");
   roller.className = "deadline-roller";
 
-  const rect = chip.getBoundingClientRect();
+  const rect = anchor.getBoundingClientRect();
   roller.style.top = `${rect.bottom + 4 + window.scrollY}px`;
   roller.style.left = `${rect.left + window.scrollX}px`;
 
-  for (const { label, days } of ROLLER_OPTIONS) {
+  for (const opt of options) {
     const btn = document.createElement("button");
     btn.className = "deadline-roller-option";
-    if (days === null) btn.classList.add("deadline-roller-option--noop");
-    if (days === -1) btn.classList.add("deadline-roller-option--remove");
-    btn.textContent = label;
+    if (opt.variant === "noop") btn.classList.add("deadline-roller-option--noop");
+    if (opt.variant === "remove") btn.classList.add("deadline-roller-option--remove");
+    btn.textContent = opt.label;
     btn.addEventListener("click", () => {
       closeRollingPicker();
-      if (days === null) return;
-      if (days === -1) {
-        removeDeadline(entry.url);
-      } else {
-        applyRollerDays(entry.url, days);
-      }
+      opt.run?.();
     });
     roller.appendChild(btn);
   }
 
   document.body.appendChild(roller);
   activeRoller = roller;
-  activeChip = chip;
+  activeChip = anchor;
 
   const onOutside = (e) => {
-    if (!roller.contains(e.target) && e.target !== chip) {
+    // anchor.contains covers anchors that wrap inner nodes (e.g. an SVG icon),
+    // so a second tap on the trigger reaches the toggle instead of being
+    // treated as an outside click that immediately reopens the picker.
+    if (!roller.contains(e.target) && !anchor.contains(e.target)) {
       closeRollingPicker();
     }
   };

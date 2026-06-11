@@ -981,6 +981,17 @@ describe('renderToReadList', () => {
     expect(item.querySelector('.mark-read-btn')).toBeNull();
     expect(item.querySelector('.remove-btn')).not.toBeNull();
   });
+
+  test('backlog items have an add-deadline button left of the remove button', () => {
+    renderToReadList([{ url: 'b', site: 'x.com', pageType: 'article', savedAt: 1 }]);
+    const actions = [...document.querySelector('.toread-actions').children].map((el) => el.className);
+    expect(actions).toEqual(['add-deadline-btn', 'remove-btn']);
+  });
+
+  test('non-backlog items have no add-deadline button', () => {
+    renderToReadList([toreadEntry('a', Date.now() + 3 * DAY_MS)]);
+    expect(document.querySelector('.add-deadline-btn')).toBeNull();
+  });
 });
 
 // ─── rolling days picker ──────────────────────────────────────────────────────
@@ -1066,6 +1077,59 @@ describe('rolling days picker', () => {
       chips[1].click();
       expect(document.querySelectorAll('.deadline-roller')).toHaveLength(1);
     });
+  });
+});
+
+// ─── add-deadline picker on Backlog rows ──────────────────────────────────────
+
+describe('Backlog add-deadline picker', () => {
+  const backlogEntry = { url: 'https://x.com/foo', site: 'x.com', pageType: 'article', savedAt: 1000 };
+
+  beforeEach(async () => {
+    document.body.innerHTML = OPTIONS_DOM;
+    chrome.storage.sync.get.mockResolvedValue({ blockedSites: [], savedPages: [backlogEntry] });
+    jest.resetModules();
+    require('../options');
+    await flushPromises();
+  });
+
+  test('clicking the clock button opens the add-deadline options (no "No deadline")', () => {
+    document.querySelector('.add-deadline-btn').click();
+
+    const options = [...document.querySelectorAll('.deadline-roller-option')].map((o) => o.textContent);
+    expect(options).toEqual(['Tomorrow', '3 days', '7 days', '30 days', '3 months']);
+  });
+
+  test('selecting an option sets readBy and writes it to storage', async () => {
+    document.querySelector('.add-deadline-btn').click();
+    [...document.querySelectorAll('.deadline-roller-option')]
+      .find((o) => o.textContent === '7 days').click();
+    await flushPromises();
+
+    const saved = chrome.storage.sync.set.mock.calls[0][0].savedPages[0];
+    expect(saved.readBy).toBeGreaterThan(Date.now() + 6.9 * DAY_MS);
+    expect(saved.readBy).toBeLessThanOrEqual(Date.now() + 7 * DAY_MS);
+  });
+
+  test('tapping the clock button again dismisses the picker', async () => {
+    const btn = document.querySelector('.add-deadline-btn');
+    btn.click();
+    await new Promise((r) => setTimeout(r, 0)); // let the outside-click handler attach
+    expect(document.querySelector('.deadline-roller')).not.toBeNull();
+
+    // The second tap lands on the inner SVG icon, as it does in the browser
+    btn.querySelector('svg').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(document.querySelector('.deadline-roller')).toBeNull();
+  });
+
+  test('after adding a deadline the row leaves Backlog for its bucket', async () => {
+    document.querySelector('.add-deadline-btn').click();
+    [...document.querySelectorAll('.deadline-roller-option')]
+      .find((o) => o.textContent === '3 days').click();
+    await flushPromises();
+
+    expect(document.querySelector('.toread-section--backlog .toread-entry')).toBeNull();
+    expect(document.querySelector('.toread-section--week .toread-entry')).not.toBeNull();
   });
 });
 
