@@ -31,16 +31,28 @@ const SAVE_BTN_CONTENT = {
   unsave: `<span class="btn-label">Unsave</span>`,
 };
 
+let saveStateInitialised = false;
+
 function setSaveState(state) {
   saveState = state;
   saveBtn.innerHTML = SAVE_BTN_CONTENT[state];
+  if (saveStateInitialised) {
+    saveBtn.classList.remove("btn-anim");
+    void saveBtn.offsetWidth; // restart the spring animation
+    saveBtn.classList.add("btn-anim");
+  }
+  saveStateInitialised = true;
 }
 
-function showSaveLabel(entry) {
+function showSaveLabel(entry, { crossfade = false } = {}) {
   if (!saveLabelEl) return;
   const { text, colorClass } = formatDueLabel(entry.readBy, entry.savedAt);
   saveLabelEl.textContent = text;
   saveLabelEl.className = `save-label ${colorClass}`;
+  if (crossfade) {
+    void saveLabelEl.offsetWidth;
+    saveLabelEl.classList.add("label-fade");
+  }
 }
 
 function hideSaveLabel() {
@@ -163,7 +175,7 @@ async function handleDeadlineOption(option) {
     return updatedEntry;
   });
   await chrome.storage.sync.set({ [SAVED_KEY]: updated });
-  if (updatedEntry) showSaveLabel(updatedEntry);
+  if (updatedEntry) showSaveLabel(updatedEntry, { crossfade: true });
   setSaveState("markread");
 }
 
@@ -177,7 +189,7 @@ async function handleMarkRead() {
     return rest;
   });
   await chrome.storage.sync.set({ [SAVED_KEY]: updated });
-  if (plainEntry) showSaveLabel(plainEntry);
+  if (plainEntry) showSaveLabel(plainEntry, { crossfade: true });
   setSaveState("unsave");
 }
 
