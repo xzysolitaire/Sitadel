@@ -60,6 +60,20 @@
     </div>
 
     <div id="tab-blocked" class="tab-panel hidden">
+      <section id="blocked-list-section" class="list-section collapsed">
+        <h2 class="list-section-toggle" role="button" tabindex="0">
+          Blocked sites <span id="count" class="count">0</span>
+          <svg class="collapse-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </h2>
+        <div class="collapsible-body">
+          <ul id="site-list" class="site-list">
+            <li id="empty-state" class="empty-state">No sites blocked yet.</li>
+          </ul>
+        </div>
+      </section>
+
       <section class="add-section">
         <label for="url-input">Add a site to block</label>
         <div class="input-row">
@@ -73,20 +87,6 @@
           <button id="add-btn" class="btn btn-primary">Add</button>
         </div>
         <div id="add-error" class="error-msg hidden"></div>
-      </section>
-
-      <section id="blocked-list-section" class="list-section collapsed">
-        <h2 class="list-section-toggle" role="button" tabindex="0">
-          Blocked sites <span id="count" class="count">0</span>
-          <svg class="collapse-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <polyline points="6 9 12 15 18 9"/>
-          </svg>
-        </h2>
-        <div class="collapsible-body">
-          <ul id="site-list" class="site-list">
-            <li id="empty-state" class="empty-state">No sites blocked yet.</li>
-          </ul>
-        </div>
       </section>
 
       <section class="settings-section">
