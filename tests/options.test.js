@@ -812,10 +812,16 @@ describe('renderToReadList', () => {
     expect(badge.classList.contains('hidden')).toBe(false);
   });
 
-  test('tab badge is hidden when there are no deadlined items', () => {
-    renderToReadList([{ url: 'plain', site: 'x.com', pageType: 'article', savedAt: 1 }]);
-
+  test('tab badge is hidden only when there are no entries at all', () => {
+    renderToReadList([]);
     expect(document.getElementById('toread-badge').classList.contains('hidden')).toBe(true);
+  });
+
+  test('tab badge counts backlog entries too', () => {
+    renderToReadList([{ url: 'plain', site: 'x.com', pageType: 'article', savedAt: 1 }]);
+    const badge = document.getElementById('toread-badge');
+    expect(badge.textContent).toBe('1');
+    expect(badge.classList.contains('hidden')).toBe(false);
   });
 
   test('empty state is hidden when there are only Backlog entries', () => {
@@ -1117,7 +1123,8 @@ describe('Mark read removes only the affected row', () => {
     await flushPromises();
 
     expect(document.querySelector('.toread-section-header .count').textContent).toBe('2');
-    expect(document.getElementById('toread-badge').textContent).toBe('2');
+    // Badge counts all entries including the one moved to Backlog
+    expect(document.getElementById('toread-badge').textContent).toBe('3');
   });
 
   test("the page's own storage echo does not rebuild the list", async () => {
@@ -1155,9 +1162,10 @@ describe('Mark read removes only the affected row', () => {
     await flushPromises();
 
     expect(document.querySelectorAll('.toread-section')).toHaveLength(0);
-    // Item moved to Backlog (no readBy), so totalCount=1 and empty state stays hidden
+    // Item moved to Backlog (no readBy): totalCount=1, empty state hidden, badge shows 1
     expect(document.getElementById('toread-empty-state').style.display).toBe('none');
-    expect(document.getElementById('toread-badge').classList.contains('hidden')).toBe(true);
+    expect(document.getElementById('toread-badge').textContent).toBe('1');
+    expect(document.getElementById('toread-badge').classList.contains('hidden')).toBe(false);
   });
 });
 

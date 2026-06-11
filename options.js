@@ -259,8 +259,8 @@ function renderToReadList(entries) {
 // Badge and Open List track deadlined items only; empty state tracks all items
 function updateToReadChrome(deadlinedCount, totalCount) {
   if (toreadBadge) {
-    toreadBadge.textContent = deadlinedCount;
-    toreadBadge.classList.toggle("hidden", deadlinedCount === 0);
+    toreadBadge.textContent = totalCount;
+    toreadBadge.classList.toggle("hidden", totalCount === 0);
   }
   toreadEmptyState.style.display = totalCount === 0 ? "block" : "none";
   if (openListArea) {
