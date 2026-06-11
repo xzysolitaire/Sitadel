@@ -336,7 +336,8 @@ function buildToReadItem(entry, sectionKey, isNew) {
 
   const markReadBtn = document.createElement("button");
   markReadBtn.className = "mark-read-btn";
-  markReadBtn.textContent = "Mark read";
+  markReadBtn.title = "Mark read";
+  markReadBtn.textContent = "✓";
   markReadBtn.addEventListener("click", async () => {
     await animateRowOut(li);
     markPageRead(entry.url);

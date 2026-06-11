@@ -890,7 +890,9 @@ describe('renderToReadList', () => {
     const item = document.querySelector('.toread-entry');
     expect(item.querySelector('.favicon-wrap img').src).toContain('github.com');
     expect(item.querySelector('.deadline-chip')).not.toBeNull();
-    expect(item.querySelector('.mark-read-btn').textContent).toBe('Mark read');
+    const markRead = item.querySelector('.mark-read-btn');
+    expect(markRead.textContent).toBe('✓');
+    expect(markRead.title).toBe('Mark read');
     expect(item.querySelector('.remove-btn')).not.toBeNull();
   });
 });
