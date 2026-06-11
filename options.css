@@ -502,9 +502,14 @@ select {
   color: #c05621;
 }
 
-/* An empty section can't expand — neutralise the toggle affordance */
+/* An empty section can't expand — neutralise the toggle affordance and mute
+   its title so attention stays on sections that actually have articles. */
 .toread-section--empty .list-section-toggle {
   cursor: default;
+}
+
+.toread-section--empty .toread-section-header {
+  color: #aaa;
 }
 
 .toread-section--empty .count {
