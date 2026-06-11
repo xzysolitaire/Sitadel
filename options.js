@@ -217,15 +217,7 @@ function renderToReadList(entries) {
   const previousUrls = renderedToReadUrls;
   renderedToReadUrls = new Set(toread.map((p) => p.url));
 
-  if (toreadBadge) {
-    toreadBadge.textContent = toread.length;
-    toreadBadge.classList.toggle("hidden", toread.length === 0);
-  }
-  toreadEmptyState.style.display = toread.length === 0 ? "block" : "none";
-  if (openListArea) {
-    openListArea.classList.toggle("hidden", toread.length === 0);
-    if (toread.length === 0) closeOpenListPicker();
-  }
+  updateToReadChrome(toread.length);
   toreadSectionsEl.textContent = "";
 
   for (const [key, label] of TOREAD_SECTIONS) {
@@ -258,9 +250,45 @@ function renderToReadList(entries) {
   }
 }
 
+// Badge, empty state and Open List visibility for a given TO READ count
+function updateToReadChrome(count) {
+  if (toreadBadge) {
+    toreadBadge.textContent = count;
+    toreadBadge.classList.toggle("hidden", count === 0);
+  }
+  toreadEmptyState.style.display = count === 0 ? "block" : "none";
+  if (openListArea) {
+    openListArea.classList.toggle("hidden", count === 0);
+    if (count === 0) closeOpenListPicker();
+  }
+}
+
+// Remove a single row in place — never rebuild the list for a removal, the
+// full re-render repaints every surviving row and reads as a screen flash.
+function removeToReadRow(url) {
+  if (!toreadSectionsEl) return;
+  renderedToReadUrls.delete(url);
+
+  const row = [...toreadSectionsEl.querySelectorAll(".toread-entry")]
+    .find((el) => el.dataset.url === url);
+  if (row) {
+    const section = row.closest(".toread-section");
+    row.remove();
+    const remaining = section.querySelectorAll(".toread-entry").length;
+    if (remaining === 0) {
+      section.remove();
+    } else {
+      section.querySelector(".toread-section-header .count").textContent = remaining;
+    }
+  }
+
+  updateToReadChrome(savedEntries.filter((p) => p.readBy != null).length);
+}
+
 function buildToReadItem(entry, sectionKey, isNew) {
   const li = document.createElement("li");
   li.className = isNew ? "toread-entry toread-entry--entering" : "toread-entry";
+  li.dataset.url = entry.url;
 
   const faviconWrap = document.createElement("div");
   faviconWrap.className = "favicon-wrap";
@@ -452,14 +480,14 @@ async function markPageRead(url) {
     return rest;
   });
   await chrome.storage.sync.set({ [SAVED_KEY]: savedEntries });
-  renderToReadList(savedEntries);
+  removeToReadRow(url);
   renderSavedList(savedEntries);
 }
 
 async function removeSavedPage(url) {
   savedEntries = savedEntries.filter((p) => p.url !== url);
   await chrome.storage.sync.set({ [SAVED_KEY]: savedEntries });
-  renderToReadList(savedEntries);
+  removeToReadRow(url);
   renderSavedList(savedEntries);
 }
 
@@ -544,9 +572,15 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== "sync") return;
   if (changes[STORAGE_KEY]) renderList(changes[STORAGE_KEY].newValue || []);
   if (changes[SAVED_KEY]) {
-    savedEntries = changes[SAVED_KEY].newValue || [];
-    renderSavedList(savedEntries);
-    renderToReadList(savedEntries);
+    const next = changes[SAVED_KEY].newValue || [];
+    // onChanged also fires for this page's own writes; the UI was already
+    // updated surgically, and a full re-render here would rebuild every
+    // row — a visible flash. Only re-render for external changes.
+    if (JSON.stringify(next) !== JSON.stringify(savedEntries)) {
+      savedEntries = next;
+      renderSavedList(savedEntries);
+      renderToReadList(savedEntries);
+    }
   }
 });
 

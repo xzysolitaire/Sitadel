@@ -1008,6 +1008,85 @@ describe('TO READ Mark read and Remove', () => {
   });
 });
 
+// ─── Mark read — surgical removal, no full re-render (flash fix) ────────────
+
+describe('Mark read removes only the affected row', () => {
+  // Three entries in the same 7-days bucket so the section survives removal
+  const e1 = toreadEntry('u1', Date.now() + 4 * DAY_MS);
+  const e2 = toreadEntry('u2', Date.now() + 5 * DAY_MS);
+  const e3 = toreadEntry('u3', Date.now() + 6 * DAY_MS);
+
+  const waitForRowExit = () => new Promise((r) => setTimeout(r, 350));
+
+  beforeEach(async () => {
+    document.body.innerHTML = OPTIONS_DOM;
+    chrome.storage.sync.get.mockResolvedValue({ blockedSites: [], savedPages: [e1, e2, e3] });
+    jest.resetModules();
+    require('../options');
+    await flushPromises();
+  });
+
+  test('sibling rows keep their exact DOM nodes (no rebuild)', async () => {
+    const rowsBefore = [...document.querySelectorAll('.toread-entry')];
+    rowsBefore[1].querySelector('.mark-read-btn').click(); // middle row
+    await waitForRowExit();
+    await flushPromises();
+
+    const rowsAfter = [...document.querySelectorAll('.toread-entry')];
+    expect(rowsAfter).toHaveLength(2);
+    expect(rowsAfter[0]).toBe(rowsBefore[0]);
+    expect(rowsAfter[1]).toBe(rowsBefore[2]);
+  });
+
+  test('section count pill updates in place', async () => {
+    document.querySelectorAll('.mark-read-btn')[1].click();
+    await waitForRowExit();
+    await flushPromises();
+
+    expect(document.querySelector('.toread-section-header .count').textContent).toBe('2');
+    expect(document.getElementById('toread-badge').textContent).toBe('2');
+  });
+
+  test("the page's own storage echo does not rebuild the list", async () => {
+    const rowsBefore = [...document.querySelectorAll('.toread-entry')];
+    rowsBefore[1].querySelector('.mark-read-btn').click();
+    await waitForRowExit();
+    await flushPromises();
+
+    // Simulate chrome.storage.onChanged firing for our own write
+    const written = chrome.storage.sync.set.mock.calls[0][0].savedPages;
+    const listener = chrome.storage.onChanged.addListener.mock.calls[0][0];
+    listener({ savedPages: { newValue: written } }, 'sync');
+
+    const rowsAfter = [...document.querySelectorAll('.toread-entry')];
+    expect(rowsAfter[0]).toBe(rowsBefore[0]);
+    expect(rowsAfter[1]).toBe(rowsBefore[2]);
+  });
+
+  test('an external storage change still re-renders the list', async () => {
+    const listener = chrome.storage.onChanged.addListener.mock.calls[0][0];
+    listener({ savedPages: { newValue: [e1] } }, 'sync');
+
+    expect(document.querySelectorAll('.toread-entry')).toHaveLength(1);
+  });
+
+  test('the section disappears when its last row is marked read', async () => {
+    document.body.innerHTML = OPTIONS_DOM;
+    chrome.storage.sync.get.mockResolvedValue({ blockedSites: [], savedPages: [e1] });
+    jest.resetModules();
+    require('../options');
+    await flushPromises();
+
+    document.querySelector('.mark-read-btn').click();
+    await waitForRowExit();
+    await flushPromises();
+
+    expect(document.querySelectorAll('.toread-section')).toHaveLength(0);
+    expect(document.getElementById('toread-empty-state').style.display).toBe('block');
+    expect(document.getElementById('toread-badge').classList.contains('hidden')).toBe(true);
+  });
+});
+
 // ─── auto-unsave on Mark read ────────────────────────────────────────────────
 
 describe('auto-unsave on Mark read', () => {
