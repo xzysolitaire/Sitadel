@@ -309,7 +309,7 @@ function buildToReadItem(entry, sectionKey, isNew) {
 
   const meta = document.createElement("div");
   meta.className = "entry-meta";
-  meta.textContent = `${humaniseSite(entry.site)} · ${entry.pageType} · ${formatDate(entry.readBy)}`;
+  meta.textContent = `${humaniseSite(entry.site)} · ${entry.pageType} · ${formatDate(entry.savedAt)}`;
 
   link.appendChild(titleEl);
   link.appendChild(meta);

@@ -845,12 +845,13 @@ describe('renderToReadList', () => {
     expect(link.target).toBe('_blank');
   });
 
-  test('meta line shows site, pageType and deadline date', () => {
+  test('meta line shows site, pageType and the saved date (not the due date)', () => {
     const readBy = new Date('2026-06-15T12:00:00').getTime();
-    renderToReadList([toreadEntry('a', readBy)]);
+    const savedAt = new Date('2026-06-01T09:00:00').getTime();
+    renderToReadList([toreadEntry('a', readBy, { savedAt })]);
 
     expect(document.querySelector('.toread-entry .entry-meta').textContent).toBe(
-      'Github · article · Jun 15, 2026',
+      'Github · article · Jun 1, 2026',
     );
   });
 
