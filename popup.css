@@ -159,22 +159,23 @@ body {
 
 /* ── Deadline picker ── */
 
+/* The picker always occupies its space so the popup never resizes —
+   opening and closing only fades it in and out. */
 .deadline-picker {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
+  align-content: flex-start;
   gap: 5px;
-  max-height: 0;
   opacity: 0;
-  overflow: hidden;
-  margin-top: -12px; /* collapse the container gap when hidden */
-  transition: max-height 0.22s ease, opacity 0.18s ease, margin-top 0.22s ease;
+  visibility: hidden;
+  transition: opacity 0.2s ease-in-out, visibility 0s linear 0.2s;
 }
 
 .deadline-picker.open {
-  max-height: 90px;
   opacity: 1;
-  margin-top: 0;
+  visibility: visible;
+  transition: opacity 0.2s ease-in-out;
 }
 
 .pill {
