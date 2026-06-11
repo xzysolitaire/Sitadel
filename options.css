@@ -493,7 +493,7 @@ select {
   margin-bottom: 4px;
 }
 
-.toread-section--overdue .toread-section-header {
+.toread-section--pastdue .toread-section-header {
   color: #c05621;
 }
 
@@ -533,7 +533,7 @@ select {
     transform 0.2s ease-in-out;
 }
 
-.toread-section--overdue .toread-entry {
+.toread-section--pastdue .toread-entry {
   background: #fffaf5;
 }
 

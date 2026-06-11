@@ -44,41 +44,45 @@ describe('getDeadlineSection', () => {
 
   beforeEach(() => jest.spyOn(Date, 'now').mockReturnValue(NOW));
 
-  test('no readBy returns null', () => {
-    expect(getDeadlineSection(undefined)).toBeNull();
-    expect(getDeadlineSection(null)).toBeNull();
+  test('no readBy returns backlog', () => {
+    expect(getDeadlineSection(undefined)).toBe('backlog');
+    expect(getDeadlineSection(null)).toBe('backlog');
   });
 
-  test('before start of today is overdue', () => {
-    expect(getDeadlineSection(NOW - 13 * 60 * 60 * 1000)).toBe('overdue');
+  test('before start of today is pastdue', () => {
+    expect(getDeadlineSection(NOW - 13 * 60 * 60 * 1000)).toBe('pastdue');
   });
 
-  test('earlier today (after midnight) is not overdue', () => {
-    expect(getDeadlineSection(NOW - 1 * 60 * 60 * 1000)).toBe('tomorrow');
+  test('earlier today (after midnight) is not pastdue', () => {
+    expect(getDeadlineSection(NOW - 1 * 60 * 60 * 1000)).toBe('week');
   });
 
-  test('due within 1 day falls in tomorrow', () => {
-    expect(getDeadlineSection(NOW + 1 * DAY_MS)).toBe('tomorrow');
+  test('due within 1 day falls in week', () => {
+    expect(getDeadlineSection(NOW + 1 * DAY_MS)).toBe('week');
   });
 
-  test('due just past 1 day falls in 3days', () => {
-    expect(getDeadlineSection(NOW + 1 * DAY_MS + 1000)).toBe('3days');
+  test('due at 3 days falls in week', () => {
+    expect(getDeadlineSection(NOW + 3 * DAY_MS)).toBe('week');
   });
 
-  test('due at 3 days falls in 3days', () => {
-    expect(getDeadlineSection(NOW + 3 * DAY_MS)).toBe('3days');
+  test('due at 7 days falls in week', () => {
+    expect(getDeadlineSection(NOW + 7 * DAY_MS)).toBe('week');
   });
 
-  test('due at 7 days falls in 7days', () => {
-    expect(getDeadlineSection(NOW + 7 * DAY_MS)).toBe('7days');
+  test('due at 8 days falls in month', () => {
+    expect(getDeadlineSection(NOW + 8 * DAY_MS)).toBe('month');
   });
 
-  test('due at 30 days falls in 30days', () => {
-    expect(getDeadlineSection(NOW + 30 * DAY_MS)).toBe('30days');
+  test('due at 30 days falls in month', () => {
+    expect(getDeadlineSection(NOW + 30 * DAY_MS)).toBe('month');
   });
 
-  test('due at 90 days falls in 3months', () => {
-    expect(getDeadlineSection(NOW + 90 * DAY_MS)).toBe('3months');
+  test('due at 31 days falls in later', () => {
+    expect(getDeadlineSection(NOW + 31 * DAY_MS)).toBe('later');
+  });
+
+  test('due at 90 days falls in later', () => {
+    expect(getDeadlineSection(NOW + 90 * DAY_MS)).toBe('later');
   });
 });
 

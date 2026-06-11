@@ -20,14 +20,12 @@ function startOfToday() {
 }
 
 function getDeadlineSection(readBy) {
-  if (readBy == null) return null;
-  if (readBy < startOfToday()) return "overdue";
+  if (readBy == null) return "backlog";
+  if (readBy < startOfToday()) return "pastdue";
   const days = (readBy - Date.now()) / DAY_MS;
-  if (days <= 1) return "tomorrow";
-  if (days <= 3) return "3days";
-  if (days <= 7) return "7days";
-  if (days <= 30) return "30days";
-  return "3months";
+  if (days <= 7) return "week";
+  if (days <= 30) return "month";
+  return "later";
 }
 
 function computeImminentSet(entries, max = 6) {

@@ -43,7 +43,7 @@ async function initToRead() {
     li.appendChild(title);
     li.appendChild(meta);
 
-    if (getDeadlineSection(entry.readBy) === "overdue") {
+    if (getDeadlineSection(entry.readBy) === "pastdue") {
       const days = daysOverdue(entry.readBy);
       const overdue = document.createElement("div");
       overdue.className = "toread-overdue";

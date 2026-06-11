@@ -196,12 +196,11 @@ function renderSavedList(entries) {
 // ── TO READ tab ──
 
 const TOREAD_SECTIONS = [
-  ["overdue", "Overdue"],
-  ["tomorrow", "Tomorrow"],
-  ["3days", "3 days"],
-  ["7days", "7 days"],
-  ["30days", "30 days"],
-  ["3months", "3 months"],
+  ["pastdue", "Past due"],
+  ["week", "Within one week"],
+  ["month", "Within one month"],
+  ["later", "One month+"],
+  ["backlog", "Backlog"],
 ];
 
 const DEADLINE_OPTIONS = ["Tomorrow", "3 days", "7 days", "30 days", "3 months"];
@@ -213,17 +212,17 @@ let renderedToReadUrls = new Set();
 function renderToReadList(entries) {
   if (!toreadSectionsEl) return;
 
-  const toread = entries.filter((p) => p.readBy != null);
+  const deadlinedCount = entries.filter((p) => p.readBy != null).length;
   const previousUrls = renderedToReadUrls;
-  renderedToReadUrls = new Set(toread.map((p) => p.url));
+  renderedToReadUrls = new Set(entries.map((p) => p.url));
 
-  updateToReadChrome(toread.length);
+  updateToReadChrome(deadlinedCount, entries.length);
   toreadSectionsEl.textContent = "";
 
   for (const [key, label] of TOREAD_SECTIONS) {
-    const items = toread
+    const items = entries
       .filter((p) => getDeadlineSection(p.readBy) === key)
-      .sort((a, b) => a.readBy - b.readBy);
+      .sort((a, b) => key === "backlog" ? b.savedAt - a.savedAt : a.readBy - b.readBy);
     if (items.length === 0) continue;
 
     const section = document.createElement("section");
@@ -250,16 +249,16 @@ function renderToReadList(entries) {
   }
 }
 
-// Badge, empty state and Open List visibility for a given TO READ count
-function updateToReadChrome(count) {
+// Badge and Open List track deadlined items only; empty state tracks all items
+function updateToReadChrome(deadlinedCount, totalCount) {
   if (toreadBadge) {
-    toreadBadge.textContent = count;
-    toreadBadge.classList.toggle("hidden", count === 0);
+    toreadBadge.textContent = deadlinedCount;
+    toreadBadge.classList.toggle("hidden", deadlinedCount === 0);
   }
-  toreadEmptyState.style.display = count === 0 ? "block" : "none";
+  toreadEmptyState.style.display = totalCount === 0 ? "block" : "none";
   if (openListArea) {
-    openListArea.classList.toggle("hidden", count === 0);
-    if (count === 0) closeOpenListPicker();
+    openListArea.classList.toggle("hidden", deadlinedCount === 0);
+    if (deadlinedCount === 0) closeOpenListPicker();
   }
 }
 
@@ -282,7 +281,8 @@ function removeToReadRow(url) {
     }
   }
 
-  updateToReadChrome(savedEntries.filter((p) => p.readBy != null).length);
+  const deadlined = savedEntries.filter((p) => p.readBy != null).length;
+  updateToReadChrome(deadlined, savedEntries.length);
 }
 
 function buildToReadItem(entry, sectionKey, isNew) {
@@ -314,7 +314,7 @@ function buildToReadItem(entry, sectionKey, isNew) {
   link.appendChild(titleEl);
   link.appendChild(meta);
 
-  if (sectionKey === "overdue") {
+  if (sectionKey === "pastdue") {
     const days = daysOverdue(entry.readBy);
     const overdueLabel = document.createElement("div");
     overdueLabel.className = "overdue-label";
@@ -325,23 +325,31 @@ function buildToReadItem(entry, sectionKey, isNew) {
   const actions = document.createElement("div");
   actions.className = "toread-actions";
 
-  const chip = document.createElement("button");
-  chip.className = "deadline-chip";
-  chip.title = "Change deadline";
-  chip.textContent = new Date(entry.readBy).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-  });
-  chip.addEventListener("click", () => expandDeadlinePills(chip, entry));
+  // Deadline chip: shown for all sections with a readBy value
+  if (sectionKey !== "backlog") {
+    const chip = document.createElement("button");
+    chip.className = "deadline-chip";
+    chip.title = "Change deadline";
+    chip.textContent = new Date(entry.readBy).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+    });
+    chip.addEventListener("click", () => expandDeadlinePills(chip, entry));
+    actions.appendChild(chip);
+  }
 
-  const markReadBtn = document.createElement("button");
-  markReadBtn.className = "mark-read-btn";
-  markReadBtn.title = "Mark read";
-  markReadBtn.textContent = "✓";
-  markReadBtn.addEventListener("click", async () => {
-    await animateRowOut(li);
-    markPageRead(entry.url);
-  });
+  // ✓ Mark read: not shown for Backlog (nothing to demote)
+  if (sectionKey !== "backlog") {
+    const markReadBtn = document.createElement("button");
+    markReadBtn.className = "mark-read-btn";
+    markReadBtn.title = "Mark read";
+    markReadBtn.textContent = "✓";
+    markReadBtn.addEventListener("click", async () => {
+      await animateRowOut(li);
+      markPageRead(entry.url);
+    });
+    actions.appendChild(markReadBtn);
+  }
 
   const removeBtn = document.createElement("button");
   removeBtn.className = "remove-btn";
@@ -349,11 +357,12 @@ function buildToReadItem(entry, sectionKey, isNew) {
   removeBtn.textContent = "×";
   removeBtn.addEventListener("click", async () => {
     await animateRowOut(li);
-    removeFromReadlist(entry.url);
+    if (sectionKey === "backlog") {
+      removeSavedPage(entry.url);
+    } else {
+      removeFromReadlist(entry.url);
+    }
   });
-
-  actions.appendChild(chip);
-  actions.appendChild(markReadBtn);
   actions.appendChild(removeBtn);
 
   li.appendChild(faviconWrap);

@@ -769,8 +769,8 @@ describe('renderToReadList', () => {
       count: h.querySelector('.count.count--blue').textContent,
     }));
     expect(headers).toEqual([
-      { label: 'Overdue', count: '2' },
-      { label: '7 days', count: '1' },
+      { label: 'Past due', count: '2' },
+      { label: 'Within one week', count: '1' },
     ]);
   });
 
@@ -778,16 +778,17 @@ describe('renderToReadList', () => {
     renderToReadList([toreadEntry('a', Date.now() + 5 * DAY_MS)]);
 
     expect(document.querySelectorAll('.toread-section')).toHaveLength(1);
-    expect(document.querySelector('.toread-section--7days')).not.toBeNull();
+    expect(document.querySelector('.toread-section--week')).not.toBeNull();
   });
 
-  test('entries without readBy are excluded', () => {
+  test('entries without readBy appear in the Backlog section', () => {
     renderToReadList([
       { url: 'plain', site: 'github.com', pageType: 'article', savedAt: 1 },
       toreadEntry('a', Date.now() + DAY_MS / 2),
     ]);
 
-    expect(document.querySelectorAll('.toread-entry')).toHaveLength(1);
+    expect(document.querySelectorAll('.toread-entry')).toHaveLength(2);
+    expect(document.querySelector('.toread-section--backlog')).not.toBeNull();
   });
 
   test('within a section items are sorted by deadline ascending', () => {
@@ -811,10 +812,16 @@ describe('renderToReadList', () => {
     expect(badge.classList.contains('hidden')).toBe(false);
   });
 
-  test('tab badge is hidden when there are no TO READ items', () => {
+  test('tab badge is hidden when there are no deadlined items', () => {
     renderToReadList([{ url: 'plain', site: 'x.com', pageType: 'article', savedAt: 1 }]);
 
     expect(document.getElementById('toread-badge').classList.contains('hidden')).toBe(true);
+  });
+
+  test('empty state is hidden when there are only Backlog entries', () => {
+    renderToReadList([{ url: 'plain', site: 'x.com', pageType: 'article', savedAt: 1 }]);
+
+    expect(document.getElementById('toread-empty-state').style.display).toBe('none');
   });
 
   test('empty state is shown only when there are no TO READ items', () => {
@@ -1087,7 +1094,8 @@ describe('Mark read removes only the affected row', () => {
     await flushPromises();
 
     expect(document.querySelectorAll('.toread-section')).toHaveLength(0);
-    expect(document.getElementById('toread-empty-state').style.display).toBe('block');
+    // Item moved to Backlog (no readBy), so totalCount=1 and empty state stays hidden
+    expect(document.getElementById('toread-empty-state').style.display).toBe('none');
     expect(document.getElementById('toread-badge').classList.contains('hidden')).toBe(true);
   });
 });
