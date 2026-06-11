@@ -240,8 +240,9 @@ body {
   cursor: default;
 }
 
-/* In-place content swap: old content (ghost) fades out, new content fades in */
-.btn-save {
+/* In-place content swap: old content (ghost) fades out, new content fades in.
+   Applies to both action buttons, which swap contextually. */
+.btn {
   position: relative;
 }
 

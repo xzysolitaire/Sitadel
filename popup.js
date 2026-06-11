@@ -11,7 +11,6 @@ const hostnameEl = document.getElementById("hostname");
 const pageTitleEl = document.getElementById("page-title");
 const faviconEl = document.getElementById("favicon");
 const blockBtn = document.getElementById("block-btn");
-const blockLabel = blockBtn.querySelector(".btn-label");
 const saveBtn = document.getElementById("save-btn");
 const saveLabelEl = document.getElementById("save-label");
 const deadlinePicker = document.getElementById("deadline-picker");
@@ -29,39 +28,64 @@ const SAVE_BTN_CONTENT = {
   undo: `<span class="btn-label">Undo</span>`,
   readlist: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg><span class="btn-label">Readlist</span><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>`,
   markread: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg><span class="btn-label">Mark read</span>`,
+};
+
+const SECONDARY_BTN_CONTENT = {
+  block: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg><span class="btn-label">Block</span>`,
   unsave: `<span class="btn-label">Unsave</span>`,
 };
 
 let saveStateInitialised = false;
-let ghostCleanupTimer = null;
+let secondaryState = "block"; // block | unsave
+const ghostTimers = new Map();
 
-// Swap the button content in place: the old content lives on in an absolutely
+// Swap a button's content in place: the old content lives on in an absolutely
 // positioned ghost that fades out, then the new content fades in (ease-in-out).
+function swapButtonContent(btn, html, animate) {
+  clearTimeout(ghostTimers.get(btn));
+  btn.querySelector(".btn-ghost")?.remove();
+  const previousContent = btn.innerHTML;
+
+  btn.innerHTML = html;
+  if (!animate) return;
+
+  const ghost = document.createElement("span");
+  ghost.className = "btn-ghost";
+  ghost.innerHTML = previousContent;
+  btn.appendChild(ghost);
+  btn.classList.add("btn-swapping");
+  ghostTimers.set(btn, setTimeout(() => {
+    ghost.remove();
+    btn.classList.remove("btn-swapping");
+  }, 320));
+}
+
 function setSaveState(state) {
   saveState = state;
-
-  clearTimeout(ghostCleanupTimer);
-  saveBtn.querySelector(".btn-ghost")?.remove();
-  const previousContent = saveBtn.innerHTML;
-
-  saveBtn.innerHTML = SAVE_BTN_CONTENT[state];
-
-  if (saveStateInitialised) {
-    const ghost = document.createElement("span");
-    ghost.className = "btn-ghost";
-    ghost.innerHTML = previousContent;
-    saveBtn.appendChild(ghost);
-    saveBtn.classList.add("btn-swapping");
-    ghostCleanupTimer = setTimeout(() => {
-      ghost.remove();
-      saveBtn.classList.remove("btn-swapping");
-    }, 320);
-  }
+  swapButtonContent(saveBtn, SAVE_BTN_CONTENT[state], saveStateInitialised);
+  updateSecondaryButton(saveStateInitialised);
   saveStateInitialised = true;
+}
 
-  // Blocking is only available while the page is not saved
-  if (!siteBlocked && currentTab) {
-    blockBtn.disabled = state !== "save";
+// The secondary slot is contextual: Block while the page is not saved
+// (disabled during the Undo window so two delete actions never show at once),
+// Unsave while it is.
+function updateSecondaryButton(animate) {
+  const next = saveState === "readlist" || saveState === "markread" ? "unsave" : "block";
+  if (next !== secondaryState) {
+    swapButtonContent(blockBtn, SECONDARY_BTN_CONTENT[next], animate);
+    secondaryState = next;
+  }
+
+  if (next === "block") {
+    if (siteBlocked) {
+      blockBtn.querySelector(".btn-label").textContent = "Blocked";
+      blockBtn.disabled = true;
+    } else {
+      blockBtn.disabled = saveState === "undo" || !currentTab;
+    }
+  } else {
+    blockBtn.disabled = false;
   }
 }
 
@@ -124,11 +148,7 @@ async function init() {
     const { [STORAGE_KEY]: entries = [], [SAVED_KEY]: savedPages = [] } =
       await chrome.storage.sync.get([STORAGE_KEY, SAVED_KEY]);
 
-    if (entries.some((e) => e.site === currentHostname)) {
-      blockLabel.textContent = "Blocked";
-      blockBtn.disabled = true;
-      siteBlocked = true;
-    }
+    siteBlocked = entries.some((e) => e.site === currentHostname);
 
     const entry = savedPages.find((p) => p.url === tab.url);
     if (entry) {
@@ -213,7 +233,9 @@ async function handleMarkRead() {
   });
   await chrome.storage.sync.set({ [SAVED_KEY]: updated });
   if (plainEntry) showSaveLabel(plainEntry, { crossfade: true });
-  setSaveState("unsave");
+  // Unsave already occupies the secondary slot, so offer Readlist again —
+  // a chance to put the page straight back on the reading list.
+  setSaveState("readlist");
 }
 
 async function handleUnsave() {
@@ -234,7 +256,6 @@ saveBtn.addEventListener("click", async () => {
     case "undo": await handleUndo(); break;
     case "readlist": deadlinePicker?.classList.contains("open") ? closePicker() : openPicker(); break;
     case "markread": await handleMarkRead(); break;
-    case "unsave": await handleUnsave(); break;
   }
 });
 
@@ -245,6 +266,12 @@ deadlinePicker?.addEventListener("click", (e) => {
 });
 
 blockBtn.addEventListener("click", async () => {
+  if (secondaryState === "unsave") {
+    if (!currentTab) return;
+    await handleUnsave();
+    return;
+  }
+
   if (!currentHostname) return;
   const { [STORAGE_KEY]: entries = [] } = await chrome.storage.sync.get(STORAGE_KEY);
   if (entries.some((e) => e.site === currentHostname)) {
@@ -253,9 +280,8 @@ blockBtn.addEventListener("click", async () => {
   }
   const newEntry = { site: currentHostname, blockedAt: Date.now() };
   await chrome.storage.sync.set({ [STORAGE_KEY]: [...entries, newEntry] });
-  blockLabel.textContent = "Blocked";
-  blockBtn.disabled = true;
   siteBlocked = true;
+  updateSecondaryButton(false);
   showFeedback(`Blocked ${currentHostname}`, "success");
 });
 
