@@ -15,7 +15,7 @@ const emptyState = document.getElementById("empty-state");
 const countEl = document.getElementById("count");
 const clearHistoryToggle = document.getElementById("clear-history-toggle");
 const unblockCooldownToggle = document.getElementById("unblock-cooldown-toggle");
-const autoUnsaveToggle = document.getElementById("auto-unsave-toggle");
+const unsaveOnRemoveToggle = document.getElementById("unsave-on-remove-toggle");
 
 const savedList = document.getElementById("saved-list");
 const savedEmptyState = document.getElementById("saved-empty-state");
@@ -33,7 +33,7 @@ const openListBtn = document.getElementById("open-list-btn");
 
 let savedEntries = [];
 let unblockCooldown = true;
-let autoUnsaveOnRead = false;
+let unsaveOnReadlistRemove = false;
 
 function normalise(raw) {
   let s = raw.trim().toLowerCase();
@@ -349,7 +349,7 @@ function buildToReadItem(entry, sectionKey, isNew) {
   removeBtn.textContent = "×";
   removeBtn.addEventListener("click", async () => {
     await animateRowOut(li);
-    removeSavedPage(entry.url);
+    removeFromReadlist(entry.url);
   });
 
   actions.appendChild(chip);
@@ -470,11 +470,8 @@ async function setPageDeadline(url, option) {
   renderSavedList(savedEntries);
 }
 
+// Mark read always keeps the page in Saved — it just clears the deadline
 async function markPageRead(url) {
-  if (autoUnsaveOnRead) {
-    await removeSavedPage(url);
-    return;
-  }
   savedEntries = savedEntries.map((p) => {
     if (p.url !== url) return p;
     const { readBy, ...rest } = p;
@@ -483,6 +480,16 @@ async function markPageRead(url) {
   await chrome.storage.sync.set({ [SAVED_KEY]: savedEntries });
   removeToReadRow(url);
   renderSavedList(savedEntries);
+}
+
+// × on a Readlist row: take the page off the read list; the setting decides
+// whether it is also deleted from Saved
+async function removeFromReadlist(url) {
+  if (unsaveOnReadlistRemove) {
+    await removeSavedPage(url);
+  } else {
+    await markPageRead(url);
+  }
 }
 
 async function removeSavedPage(url) {
@@ -541,13 +548,13 @@ async function removeSite(site) {
 }
 
 async function loadSettings() {
-  const { clearHistory = true, unblockCooldown: cooldown = true, autoUnsaveOnRead: autoUnsave = false } =
-    await chrome.storage.sync.get(["clearHistory", "unblockCooldown", "autoUnsaveOnRead"]);
+  const { clearHistory = true, unblockCooldown: cooldown = true, unsaveOnReadlistRemove: unsaveOnRemove = false } =
+    await chrome.storage.sync.get(["clearHistory", "unblockCooldown", "unsaveOnReadlistRemove"]);
   clearHistoryToggle.checked = clearHistory;
   unblockCooldownToggle.checked = cooldown;
   unblockCooldown = cooldown;
-  if (autoUnsaveToggle) autoUnsaveToggle.checked = autoUnsave;
-  autoUnsaveOnRead = autoUnsave;
+  if (unsaveOnRemoveToggle) unsaveOnRemoveToggle.checked = unsaveOnRemove;
+  unsaveOnReadlistRemove = unsaveOnRemove;
 }
 
 // Tab switching
@@ -589,9 +596,9 @@ clearHistoryToggle.addEventListener("change", () => {
   chrome.storage.sync.set({ clearHistory: clearHistoryToggle.checked });
 });
 
-autoUnsaveToggle?.addEventListener("change", () => {
-  autoUnsaveOnRead = autoUnsaveToggle.checked;
-  chrome.storage.sync.set({ autoUnsaveOnRead });
+unsaveOnRemoveToggle?.addEventListener("change", () => {
+  unsaveOnReadlistRemove = unsaveOnRemoveToggle.checked;
+  chrome.storage.sync.set({ unsaveOnReadlistRemove });
 });
 
 unblockCooldownToggle.addEventListener("change", () => {
