@@ -393,15 +393,27 @@ function animateRowOut(li) {
 }
 
 let activeRoller = null;
+let activeChip = null;
+let activeRollerCloseHandler = null;
 
 function closeRollingPicker() {
   if (activeRoller) {
     activeRoller.remove();
     activeRoller = null;
+    activeChip = null;
+  }
+  if (activeRollerCloseHandler) {
+    document.removeEventListener("click", activeRollerCloseHandler, true);
+    activeRollerCloseHandler = null;
   }
 }
 
 function openRollingPicker(chip, entry) {
+  // Tapping the same chip again toggles the picker closed
+  if (activeChip === chip) {
+    closeRollingPicker();
+    return;
+  }
   closeRollingPicker();
 
   const roller = document.createElement("div");
@@ -431,13 +443,14 @@ function openRollingPicker(chip, entry) {
 
   document.body.appendChild(roller);
   activeRoller = roller;
+  activeChip = chip;
 
   const onOutside = (e) => {
     if (!roller.contains(e.target) && e.target !== chip) {
       closeRollingPicker();
-      document.removeEventListener("click", onOutside, true);
     }
   };
+  activeRollerCloseHandler = onOutside;
   // Use capture so the handler runs before any other click handlers
   setTimeout(() => document.addEventListener("click", onOutside, true), 0);
 }

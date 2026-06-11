@@ -991,6 +991,13 @@ describe('rolling days picker', () => {
     expect(document.querySelector('.deadline-roller')).toBeNull();
   });
 
+  test('tapping the chip again dismisses the picker', () => {
+    document.querySelector('.deadline-chip').click();
+    expect(document.querySelector('.deadline-roller')).not.toBeNull();
+    document.querySelector('.deadline-chip').click();
+    expect(document.querySelector('.deadline-roller')).toBeNull();
+  });
+
   test('opening a second roller closes the first', () => {
     const entries2 = [
       toreadEntry('u1', Date.now() + DAY_MS / 2),
