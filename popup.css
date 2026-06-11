@@ -232,14 +232,32 @@ body {
   cursor: default;
 }
 
-@keyframes springIn {
-  0%   { opacity: 0.2; transform: translateY(6px); }
-  60%  { opacity: 1; transform: translateY(-1.5px); }
-  100% { opacity: 1; transform: translateY(0); }
+/* In-place content swap: old content (ghost) fades out, new content fades in */
+.btn-save {
+  position: relative;
 }
 
-.btn-anim {
-  animation: springIn 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
+.btn-ghost {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  animation: btnHide 0.15s ease-in-out forwards;
+}
+
+.btn-swapping > :not(.btn-ghost) {
+  opacity: 0;
+  animation: btnShow 0.15s ease-in-out 0.15s forwards;
+}
+
+@keyframes btnHide {
+  to { opacity: 0; }
+}
+
+@keyframes btnShow {
+  to { opacity: 1; }
 }
 
 .btn-save {

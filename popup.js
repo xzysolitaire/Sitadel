@@ -32,14 +32,29 @@ const SAVE_BTN_CONTENT = {
 };
 
 let saveStateInitialised = false;
+let ghostCleanupTimer = null;
 
+// Swap the button content in place: the old content lives on in an absolutely
+// positioned ghost that fades out, then the new content fades in (ease-in-out).
 function setSaveState(state) {
   saveState = state;
+
+  clearTimeout(ghostCleanupTimer);
+  saveBtn.querySelector(".btn-ghost")?.remove();
+  const previousContent = saveBtn.innerHTML;
+
   saveBtn.innerHTML = SAVE_BTN_CONTENT[state];
+
   if (saveStateInitialised) {
-    saveBtn.classList.remove("btn-anim");
-    void saveBtn.offsetWidth; // restart the spring animation
-    saveBtn.classList.add("btn-anim");
+    const ghost = document.createElement("span");
+    ghost.className = "btn-ghost";
+    ghost.innerHTML = previousContent;
+    saveBtn.appendChild(ghost);
+    saveBtn.classList.add("btn-swapping");
+    ghostCleanupTimer = setTimeout(() => {
+      ghost.remove();
+      saveBtn.classList.remove("btn-swapping");
+    }, 320);
   }
   saveStateInitialised = true;
 }
