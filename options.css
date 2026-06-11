@@ -476,6 +476,151 @@ select {
   margin-top: 3px;
 }
 
+/* TO READ tab */
+#toread-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.toread-section-header {
+  font-size: 15px;
+  font-weight: 700;
+  color: #333;
+  margin-bottom: 4px;
+}
+
+.toread-section--overdue .toread-section-header {
+  color: #c05621;
+}
+
+.toread-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.toread-entry {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 0;
+  border-bottom: 1px solid #f2f2f2;
+  animation: fadeIn 0.15s ease;
+}
+
+.toread-entry:last-child {
+  border-bottom: none;
+}
+
+.toread-section--overdue .toread-entry {
+  background: #fffaf5;
+}
+
+.overdue-label {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #c05621;
+  background: #feebc8;
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+
+.toread-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.deadline-chip {
+  padding: 5px 10px;
+  border: 1px solid #dbe4f0;
+  border-radius: 999px;
+  background: #f4f8fd;
+  color: #3182ce;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+
+.deadline-chip:hover {
+  background: #e6f0fa;
+}
+
+.deadline-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.deadline-pill {
+  padding: 4px 9px;
+  border: 1px solid #dbe4f0;
+  border-radius: 999px;
+  background: #fff;
+  color: #3182ce;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+
+.deadline-pill:hover {
+  background: #e6f0fa;
+}
+
+.deadline-pill--cancel {
+  color: #999;
+  border-color: #e4e4e4;
+}
+
+.deadline-pill--cancel:hover {
+  background: #f5f5f5;
+}
+
+.mark-read-btn {
+  padding: 5px 10px;
+  border: none;
+  border-radius: 5px;
+  background: #e6fbf0;
+  color: #2f855a;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+
+.mark-read-btn:hover {
+  background: #c6f6d5;
+}
+
+.toread-entry .remove-btn {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  margin-left: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 17px;
+  line-height: 1;
+  background: #f5f5f5;
+  color: #bbb;
+  border-radius: 6px;
+}
+
+.toread-entry .remove-btn:hover {
+  background: #fff0f0;
+  color: #c53030;
+}
+
 /* Remove button override for saved entries */
 .saved-entry .remove-btn {
   width: 28px;
