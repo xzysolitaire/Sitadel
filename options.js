@@ -216,6 +216,77 @@ const ROLLER_OPTIONS = [
 // replay the entry animation when the list is rebuilt.
 let renderedToReadUrls = new Set();
 
+// Section collapse state, preserved across re-renders. Backlog starts collapsed.
+let collapsedSections = new Set(["backlog"]);
+
+const CHEVRON_SVG = `<svg class="collapse-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>`;
+
+// A collapsible section shell matching the Blocked list pattern. The caller
+// fills the inner `.toread-list`.
+function buildToReadSection(key, label, count) {
+  const section = document.createElement("section");
+  section.className = `toread-section toread-section--${key} list-section`;
+  section.dataset.sectionKey = key;
+
+  const header = document.createElement("h2");
+  header.className = "toread-section-header list-section-toggle";
+  header.setAttribute("role", "button");
+
+  const headerLabel = document.createElement("span");
+  headerLabel.textContent = label;
+  const headerCount = document.createElement("span");
+  headerCount.className = "count count--blue";
+  headerCount.textContent = count;
+  const chevronWrap = document.createElement("span");
+  chevronWrap.innerHTML = CHEVRON_SVG;
+  header.append(headerLabel, headerCount, chevronWrap.firstElementChild);
+
+  const body = document.createElement("div");
+  body.className = "collapsible-body";
+  const ul = document.createElement("ul");
+  ul.className = "toread-list";
+  body.appendChild(ul);
+
+  section.append(header, body);
+
+  const toggle = () => {
+    // An empty section has no content to reveal — its chevron stays collapsed
+    // and the toggle is inert.
+    if (section.classList.contains("toread-section--empty")) return;
+    section.classList.toggle("collapsed");
+    if (section.classList.contains("collapsed")) collapsedSections.add(key);
+    else collapsedSections.delete(key);
+  };
+  header.addEventListener("click", toggle);
+  header.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      toggle();
+    }
+  });
+
+  syncSectionState(section, count);
+  return section;
+}
+
+// Reflect a section's collapsed/empty state for the given row count. An empty
+// section is forced collapsed (chevron points right) and made non-interactive;
+// a populated one restores its tracked collapse state and keyboard focus.
+function syncSectionState(section, count) {
+  const header = section.querySelector(".toread-section-header");
+  const key = section.dataset.sectionKey;
+  if (count === 0) {
+    section.classList.add("toread-section--empty", "collapsed");
+    header.setAttribute("aria-disabled", "true");
+    header.removeAttribute("tabindex");
+  } else {
+    section.classList.remove("toread-section--empty");
+    header.removeAttribute("aria-disabled");
+    header.tabIndex = 0;
+    section.classList.toggle("collapsed", collapsedSections.has(key));
+  }
+}
+
 function renderToReadList(entries) {
   if (!toreadSectionsEl) return;
 
@@ -226,32 +297,20 @@ function renderToReadList(entries) {
   updateToReadChrome(deadlinedCount, entries.length);
   toreadSectionsEl.textContent = "";
 
+  // Nothing saved at all — leave the empty state to carry the message.
+  if (entries.length === 0) return;
+
+  // Every section is always shown so the buckets stay legible even when empty.
   for (const [key, label] of TOREAD_SECTIONS) {
     const items = entries
       .filter((p) => getDeadlineSection(p.readBy) === key)
       .sort((a, b) => key === "backlog" ? b.savedAt - a.savedAt : a.readBy - b.readBy);
-    if (items.length === 0) continue;
 
-    const section = document.createElement("section");
-    section.className = `toread-section toread-section--${key}`;
-
-    const header = document.createElement("h2");
-    header.className = "toread-section-header";
-    const headerLabel = document.createElement("span");
-    headerLabel.textContent = label;
-    const headerCount = document.createElement("span");
-    headerCount.className = "count count--blue";
-    headerCount.textContent = items.length;
-    header.append(headerLabel, headerCount);
-    section.appendChild(header);
-
-    const ul = document.createElement("ul");
-    ul.className = "toread-list";
+    const section = buildToReadSection(key, label, items.length);
+    const ul = section.querySelector(".toread-list");
     for (const entry of items) {
       ul.appendChild(buildToReadItem(entry, key, !previousUrls.has(entry.url)));
     }
-    section.appendChild(ul);
-
     toreadSectionsEl.appendChild(section);
   }
 }
@@ -269,8 +328,16 @@ function updateToReadChrome(deadlinedCount, totalCount) {
   }
 }
 
+function updateSectionCount(section) {
+  const n = section.querySelectorAll(".toread-entry").length;
+  section.querySelector(".toread-section-header .count").textContent = n;
+  syncSectionState(section, n);
+}
+
 // Remove a single row in place — never rebuild the list for a removal, the
 // full re-render repaints every surviving row and reads as a screen flash.
+// Sections are kept even when empty (they are always shown); only when the
+// list is now fully empty do we clear them so the empty state can take over.
 function removeToReadRow(url) {
   if (!toreadSectionsEl) return;
   renderedToReadUrls.delete(url);
@@ -280,22 +347,37 @@ function removeToReadRow(url) {
   if (row) {
     const section = row.closest(".toread-section");
     row.remove();
-    const remaining = section.querySelectorAll(".toread-entry").length;
-    if (remaining === 0) {
-      section.remove();
-    } else {
-      section.querySelector(".toread-section-header .count").textContent = remaining;
-    }
+    updateSectionCount(section);
   }
+
+  if (savedEntries.length === 0) toreadSectionsEl.textContent = "";
 
   const deadlined = savedEntries.filter((p) => p.readBy != null).length;
   updateToReadChrome(deadlined, savedEntries.length);
+}
+
+// Insert a freshly de-deadlined row into the Backlog section in savedAt-desc
+// order, animating it in — the surgical counterpart of a move to Backlog.
+function addBacklogRow(entry) {
+  if (!toreadSectionsEl) return;
+  renderedToReadUrls.add(entry.url);
+
+  const section = toreadSectionsEl.querySelector(".toread-section--backlog");
+  if (!section) return;
+
+  const ul = section.querySelector(".toread-list");
+  const row = buildToReadItem(entry, "backlog", true);
+  const before = [...ul.querySelectorAll(".toread-entry")]
+    .find((el) => Number(el.dataset.savedAt) < entry.savedAt);
+  ul.insertBefore(row, before || null);
+  updateSectionCount(section);
 }
 
 function buildToReadItem(entry, sectionKey, isNew) {
   const li = document.createElement("li");
   li.className = isNew ? "toread-entry toread-entry--entering" : "toread-entry";
   li.dataset.url = entry.url;
+  li.dataset.savedAt = entry.savedAt;
 
   const faviconWrap = document.createElement("div");
   faviconWrap.className = "favicon-wrap";
@@ -549,15 +631,19 @@ async function setPageDeadline(url, option) {
   renderSavedList(savedEntries);
 }
 
-// Mark read always keeps the page in Saved — it just clears the deadline
+// Mark read always keeps the page in Saved — it just clears the deadline,
+// which moves the row out of its deadline bucket and into Backlog.
 async function markPageRead(url) {
+  let updatedEntry = null;
   savedEntries = savedEntries.map((p) => {
     if (p.url !== url) return p;
     const { readBy, ...rest } = p;
+    updatedEntry = rest;
     return rest;
   });
   await chrome.storage.sync.set({ [SAVED_KEY]: savedEntries });
   removeToReadRow(url);
+  if (updatedEntry) addBacklogRow(updatedEntry);
   renderSavedList(savedEntries);
 }
 

@@ -771,14 +771,60 @@ describe('renderToReadList', () => {
     expect(headers).toEqual([
       { label: 'Past due', count: '2' },
       { label: 'Within one week', count: '1' },
+      { label: 'Within one month', count: '0' },
+      { label: 'One month+', count: '0' },
+      { label: 'Backlog', count: '0' },
     ]);
   });
 
-  test('empty sections are not rendered', () => {
+  test('all sections are rendered even when empty', () => {
     renderToReadList([toreadEntry('a', Date.now() + 5 * DAY_MS)]);
 
-    expect(document.querySelectorAll('.toread-section')).toHaveLength(1);
+    expect(document.querySelectorAll('.toread-section')).toHaveLength(5);
     expect(document.querySelector('.toread-section--week')).not.toBeNull();
+  });
+
+  test('no sections are rendered when nothing is saved', () => {
+    renderToReadList([]);
+    expect(document.querySelectorAll('.toread-section')).toHaveLength(0);
+  });
+
+  test('non-empty Backlog is collapsed by default while populated sections are expanded', () => {
+    renderToReadList([
+      toreadEntry('a', Date.now() - 2 * DAY_MS), // pastdue
+      toreadEntry('b', Date.now() + 5 * DAY_MS), // week
+      { url: 'c', site: 'x.com', pageType: 'article', savedAt: 1 }, // backlog
+    ]);
+
+    expect(document.querySelector('.toread-section--backlog').classList.contains('collapsed')).toBe(true);
+    expect(document.querySelector('.toread-section--week').classList.contains('collapsed')).toBe(false);
+    expect(document.querySelector('.toread-section--pastdue').classList.contains('collapsed')).toBe(false);
+  });
+
+  test('an empty section is forced collapsed and marked empty', () => {
+    renderToReadList([toreadEntry('a', Date.now() + 5 * DAY_MS)]); // only week has an item
+
+    const month = document.querySelector('.toread-section--month');
+    expect(month.classList.contains('collapsed')).toBe(true);
+    expect(month.classList.contains('toread-section--empty')).toBe(true);
+  });
+
+  test('tapping an empty section header has no effect', () => {
+    renderToReadList([toreadEntry('a', Date.now() + 5 * DAY_MS)]);
+
+    const month = document.querySelector('.toread-section--month');
+    month.querySelector('.list-section-toggle').click();
+    expect(month.classList.contains('collapsed')).toBe(true);
+  });
+
+  test('toggling a populated section header flips its collapsed state', () => {
+    renderToReadList([toreadEntry('a', Date.now() + 5 * DAY_MS)]);
+
+    const week = document.querySelector('.toread-section--week');
+    week.querySelector('.list-section-toggle').click();
+    expect(week.classList.contains('collapsed')).toBe(true);
+    week.querySelector('.list-section-toggle').click();
+    expect(week.classList.contains('collapsed')).toBe(false);
   });
 
   test('entries without readBy appear in the Backlog section', () => {
@@ -1058,12 +1104,13 @@ describe('TO READ Mark read and Remove', () => {
     expect(saved[0]).not.toHaveProperty('readBy');
   });
 
-  test('Mark read removes the item from TO READ but keeps it in Saved', async () => {
+  test('Mark read moves the item into Backlog and keeps it in Saved', async () => {
     document.querySelector('.mark-read-btn').click();
     await waitForRowExit();
     await flushPromises();
 
-    expect(document.querySelectorAll('.toread-entry')).toHaveLength(0);
+    expect(document.querySelectorAll('.toread-entry')).toHaveLength(1);
+    expect(document.querySelector('.toread-section--backlog .toread-entry')).not.toBeNull();
     expect(document.querySelectorAll('.saved-entry')).toHaveLength(1);
   });
 
@@ -1077,12 +1124,12 @@ describe('TO READ Mark read and Remove', () => {
     expect(saved[0]).not.toHaveProperty('readBy');
   });
 
-  test('× clears the item from the Readlist tab but not from Saved by default', async () => {
+  test('× moves the item into Backlog but keeps it in Saved by default', async () => {
     document.querySelector('.toread-entry .remove-btn').click();
     await waitForRowExit();
     await flushPromises();
 
-    expect(document.querySelectorAll('.toread-entry')).toHaveLength(0);
+    expect(document.querySelector('.toread-section--backlog .toread-entry')).not.toBeNull();
     expect(document.querySelectorAll('.saved-entry')).toHaveLength(1);
   });
 });
@@ -1105,24 +1152,27 @@ describe('Mark read removes only the affected row', () => {
     await flushPromises();
   });
 
-  test('sibling rows keep their exact DOM nodes (no rebuild)', async () => {
-    const rowsBefore = [...document.querySelectorAll('.toread-entry')];
-    rowsBefore[1].querySelector('.mark-read-btn').click(); // middle row
+  test('sibling rows in the source section keep their exact DOM nodes (no rebuild)', async () => {
+    const weekBefore = [...document.querySelectorAll('.toread-section--week .toread-entry')];
+    weekBefore[1].querySelector('.mark-read-btn').click(); // middle row
     await waitForRowExit();
     await flushPromises();
 
-    const rowsAfter = [...document.querySelectorAll('.toread-entry')];
-    expect(rowsAfter).toHaveLength(2);
-    expect(rowsAfter[0]).toBe(rowsBefore[0]);
-    expect(rowsAfter[1]).toBe(rowsBefore[2]);
+    const weekAfter = [...document.querySelectorAll('.toread-section--week .toread-entry')];
+    expect(weekAfter).toHaveLength(2);
+    expect(weekAfter[0]).toBe(weekBefore[0]);
+    expect(weekAfter[1]).toBe(weekBefore[2]);
+    // The marked-read row is relocated into Backlog
+    expect(document.querySelectorAll('.toread-section--backlog .toread-entry')).toHaveLength(1);
   });
 
-  test('section count pill updates in place', async () => {
-    document.querySelectorAll('.mark-read-btn')[1].click();
+  test('section count pills update in place', async () => {
+    document.querySelectorAll('.toread-section--week .mark-read-btn')[1].click();
     await waitForRowExit();
     await flushPromises();
 
-    expect(document.querySelector('.toread-section-header .count').textContent).toBe('2');
+    expect(document.querySelector('.toread-section--week .count').textContent).toBe('2');
+    expect(document.querySelector('.toread-section--backlog .count').textContent).toBe('1');
     // Badge counts all entries including the one moved to Backlog
     expect(document.getElementById('toread-badge').textContent).toBe('3');
   });
@@ -1150,19 +1200,21 @@ describe('Mark read removes only the affected row', () => {
     expect(document.querySelectorAll('.toread-entry')).toHaveLength(1);
   });
 
-  test('the section disappears when its last row is marked read', async () => {
+  test('the emptied section stays and its row reappears in Backlog', async () => {
     document.body.innerHTML = OPTIONS_DOM;
     chrome.storage.sync.get.mockResolvedValue({ blockedSites: [], savedPages: [e1] });
     jest.resetModules();
     require('../options');
     await flushPromises();
 
-    document.querySelector('.mark-read-btn').click();
+    document.querySelector('.toread-section--week .mark-read-btn').click();
     await waitForRowExit();
     await flushPromises();
 
-    expect(document.querySelectorAll('.toread-section')).toHaveLength(0);
-    // Item moved to Backlog (no readBy): totalCount=1, empty state hidden, badge shows 1
+    // All sections remain; the source section is now empty, Backlog holds the row
+    expect(document.querySelectorAll('.toread-section')).toHaveLength(5);
+    expect(document.querySelector('.toread-section--week .count').textContent).toBe('0');
+    expect(document.querySelectorAll('.toread-section--backlog .toread-entry')).toHaveLength(1);
     expect(document.getElementById('toread-empty-state').style.display).toBe('none');
     expect(document.getElementById('toread-badge').textContent).toBe('1');
     expect(document.getElementById('toread-badge').classList.contains('hidden')).toBe(false);
@@ -1225,7 +1277,7 @@ describe('unsave on readlist removal setting', () => {
     const saved = chrome.storage.sync.set.mock.calls[0][0].savedPages;
     expect(saved).toHaveLength(1);
     expect(saved[0]).not.toHaveProperty('readBy');
-    expect(document.querySelectorAll('.toread-entry')).toHaveLength(0);
+    expect(document.querySelector('.toread-section--backlog .toread-entry')).not.toBeNull();
     expect(document.querySelectorAll('.saved-entry')).toHaveLength(1);
   });
 

@@ -490,11 +490,19 @@ select {
   font-size: 15px;
   font-weight: 700;
   color: #333;
-  margin-bottom: 4px;
 }
 
 .toread-section--pastdue .toread-section-header {
   color: #c05621;
+}
+
+/* An empty section can't expand — neutralise the toggle affordance */
+.toread-section--empty .list-section-toggle {
+  cursor: default;
+}
+
+.toread-section--empty .count {
+  opacity: 0.5;
 }
 
 .toread-list {
