@@ -325,15 +325,17 @@ function buildToReadItem(entry, sectionKey, isNew) {
   const actions = document.createElement("div");
   actions.className = "toread-actions";
 
-  // Deadline chip: shown for all sections with a readBy value
-  if (sectionKey !== "backlog") {
+  // Chip shown only for urgent sections; text reflects urgency
+  if (sectionKey === "pastdue" || sectionKey === "week") {
     const chip = document.createElement("button");
     chip.className = "deadline-chip";
-    chip.title = "Change deadline";
-    chip.textContent = new Date(entry.readBy).toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-    });
+    chip.title = "Adjust deadline";
+    if (sectionKey === "pastdue") {
+      chip.textContent = "Snooze";
+    } else {
+      const daysLeft = Math.ceil((entry.readBy - Date.now()) / (24 * 60 * 60 * 1000));
+      chip.textContent = daysLeft <= 0 ? "Due today" : `Due in ${daysLeft} ${daysLeft === 1 ? "day" : "days"}`;
+    }
     chip.addEventListener("click", () => expandDeadlinePills(chip, entry));
     actions.appendChild(chip);
   }

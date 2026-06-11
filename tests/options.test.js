@@ -891,7 +891,7 @@ describe('renderToReadList', () => {
     expect(entering[0].querySelector('.entry-site').textContent).toBe('Title b');
   });
 
-  test('each item renders favicon, deadline chip, Mark read and Remove buttons', () => {
+  test('each deadlined item renders favicon, deadline chip, Mark read and Remove buttons', () => {
     renderToReadList([toreadEntry('a', Date.now() + DAY_MS / 2)]);
 
     const item = document.querySelector('.toread-entry');
@@ -900,6 +900,33 @@ describe('renderToReadList', () => {
     const markRead = item.querySelector('.mark-read-btn');
     expect(markRead.textContent).toBe('✓');
     expect(markRead.title).toBe('Mark read');
+    expect(item.querySelector('.remove-btn')).not.toBeNull();
+  });
+
+  test('chip shows "Due in N days" for week-section items', () => {
+    renderToReadList([toreadEntry('a', Date.now() + 3 * DAY_MS)]);
+    const chip = document.querySelector('.deadline-chip');
+    expect(chip).not.toBeNull();
+    expect(chip.textContent).toMatch(/Due in 3 days/);
+  });
+
+  test('chip shows "Snooze" for past-due items', () => {
+    renderToReadList([toreadEntry('a', Date.now() - 2 * DAY_MS)]);
+    const chip = document.querySelector('.deadline-chip');
+    expect(chip).not.toBeNull();
+    expect(chip.textContent).toBe('Snooze');
+  });
+
+  test('chip is hidden for month/later sections', () => {
+    renderToReadList([toreadEntry('a', Date.now() + 15 * DAY_MS)]);
+    expect(document.querySelector('.deadline-chip')).toBeNull();
+  });
+
+  test('backlog items have no chip and no mark-read button', () => {
+    renderToReadList([{ url: 'b', site: 'x.com', pageType: 'article', savedAt: 1 }]);
+    const item = document.querySelector('.toread-entry');
+    expect(item.querySelector('.deadline-chip')).toBeNull();
+    expect(item.querySelector('.mark-read-btn')).toBeNull();
     expect(item.querySelector('.remove-btn')).not.toBeNull();
   });
 });
