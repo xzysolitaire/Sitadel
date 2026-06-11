@@ -189,6 +189,7 @@ async function loadSaved() {
   const { [SAVED_KEY]: entries = [] } = await chrome.storage.sync.get(SAVED_KEY);
   savedEntries = entries;
   renderSavedList(savedEntries);
+  activateTab(savedEntries.some((p) => p.readBy != null) ? "toread" : "saved");
 }
 
 async function load() {
@@ -240,15 +241,17 @@ async function loadSettings() {
 }
 
 // Tab switching
+function activateTab(name) {
+  document.querySelectorAll(".seg-btn").forEach((b) =>
+    b.classList.toggle("seg-btn--active", b.dataset.tab === name)
+  );
+  document.querySelectorAll(".tab-panel").forEach((panel) =>
+    panel.classList.toggle("hidden", panel.id !== `tab-${name}`)
+  );
+}
+
 document.querySelectorAll(".seg-btn").forEach((btn) => {
-  btn.addEventListener("click", () => {
-    document.querySelectorAll(".seg-btn").forEach((b) =>
-      b.classList.toggle("seg-btn--active", b === btn)
-    );
-    document.querySelectorAll(".tab-panel").forEach((panel) =>
-      panel.classList.toggle("hidden", panel.id !== `tab-${btn.dataset.tab}`)
-    );
-  });
+  btn.addEventListener("click", () => activateTab(btn.dataset.tab));
 });
 
 // Filter and sort controls

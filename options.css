@@ -308,6 +308,26 @@ input[type="text"]:focus {
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.14);
 }
 
+.seg-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: 1px;
+  background: #3182ce;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 999px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  margin-left: 2px;
+}
+
+.seg-badge.hidden {
+  display: none;
+}
+
 /* Saved tab panel layout */
 .tab-panel {
   display: flex;
