@@ -299,13 +299,19 @@ function buildToReadItem(entry, sectionKey) {
   const markReadBtn = document.createElement("button");
   markReadBtn.className = "mark-read-btn";
   markReadBtn.textContent = "Mark read";
-  markReadBtn.addEventListener("click", () => markPageRead(entry.url));
+  markReadBtn.addEventListener("click", async () => {
+    await animateRowOut(li);
+    markPageRead(entry.url);
+  });
 
   const removeBtn = document.createElement("button");
   removeBtn.className = "remove-btn";
   removeBtn.title = "Remove";
   removeBtn.textContent = "×";
-  removeBtn.addEventListener("click", () => removeSavedPage(entry.url));
+  removeBtn.addEventListener("click", async () => {
+    await animateRowOut(li);
+    removeSavedPage(entry.url);
+  });
 
   actions.appendChild(chip);
   actions.appendChild(markReadBtn);
@@ -315,6 +321,18 @@ function buildToReadItem(entry, sectionKey) {
   li.appendChild(link);
   li.appendChild(actions);
   return li;
+}
+
+// Collapse the row out before mutating storage, so the re-render doesn't
+// cut the animation short (storage.onChanged re-renders immediately).
+function animateRowOut(li) {
+  return new Promise((resolve) => {
+    li.style.height = `${li.offsetHeight}px`;
+    void li.offsetHeight;
+    li.classList.add("toread-entry--leaving");
+    li.addEventListener("transitionend", () => resolve(), { once: true });
+    setTimeout(resolve, 300); // fallback when transitions don't run (e.g. jsdom)
+  });
 }
 
 function expandDeadlinePills(chip, entry) {

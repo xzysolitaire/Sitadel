@@ -921,6 +921,9 @@ describe('inline deadline editing', () => {
 describe('TO READ Mark read and Remove', () => {
   const entry = toreadEntry('https://github.com/foo', Date.now() + DAY_MS / 2);
 
+  // The row-exit animation (300 ms jsdom fallback) runs before storage updates
+  const waitForRowExit = () => new Promise((r) => setTimeout(r, 350));
+
   beforeEach(async () => {
     document.body.innerHTML = OPTIONS_DOM;
     chrome.storage.sync.get.mockResolvedValue({ blockedSites: [], savedPages: [entry] });
@@ -929,8 +932,17 @@ describe('TO READ Mark read and Remove', () => {
     await flushPromises();
   });
 
+  test('Mark read tags the leaving row for the exit animation', () => {
+    const row = document.querySelector('.toread-entry');
+    document.querySelector('.mark-read-btn').click();
+
+    expect(row.classList.contains('toread-entry--leaving')).toBe(true);
+    expect(chrome.storage.sync.set).not.toHaveBeenCalled();
+  });
+
   test('Mark read removes readBy from storage but keeps the entry', async () => {
     document.querySelector('.mark-read-btn').click();
+    await waitForRowExit();
     await flushPromises();
 
     const saved = chrome.storage.sync.set.mock.calls[0][0].savedPages;
@@ -941,6 +953,7 @@ describe('TO READ Mark read and Remove', () => {
 
   test('Mark read removes the item from TO READ but keeps it in Saved', async () => {
     document.querySelector('.mark-read-btn').click();
+    await waitForRowExit();
     await flushPromises();
 
     expect(document.querySelectorAll('.toread-entry')).toHaveLength(0);
@@ -949,6 +962,7 @@ describe('TO READ Mark read and Remove', () => {
 
   test('Remove deletes the entry from storage entirely', async () => {
     document.querySelector('.toread-entry .remove-btn').click();
+    await waitForRowExit();
     await flushPromises();
 
     expect(chrome.storage.sync.set).toHaveBeenCalledWith({ savedPages: [] });
@@ -956,6 +970,7 @@ describe('TO READ Mark read and Remove', () => {
 
   test('Remove clears the item from both tabs', async () => {
     document.querySelector('.toread-entry .remove-btn').click();
+    await waitForRowExit();
     await flushPromises();
 
     expect(document.querySelectorAll('.toread-entry')).toHaveLength(0);

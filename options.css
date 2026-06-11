@@ -516,6 +516,19 @@ select {
   border-bottom: none;
 }
 
+.toread-entry--leaving {
+  height: 0 !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  border-bottom-width: 0 !important;
+  opacity: 0;
+  transform: translateX(-10px);
+  overflow: hidden;
+  transition: height 0.2s ease-in-out, padding 0.2s ease-in-out,
+    border-bottom-width 0.2s ease-in-out, opacity 0.15s ease-in-out,
+    transform 0.2s ease-in-out;
+}
+
 .toread-section--overdue .toread-entry {
   background: #fffaf5;
 }
