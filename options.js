@@ -231,7 +231,12 @@ function renderToReadList(entries) {
 
     const header = document.createElement("h2");
     header.className = "toread-section-header";
-    header.textContent = `${label} (${items.length})`;
+    const headerLabel = document.createElement("span");
+    headerLabel.textContent = label;
+    const headerCount = document.createElement("span");
+    headerCount.className = "count count--blue";
+    headerCount.textContent = items.length;
+    header.append(headerLabel, headerCount);
     section.appendChild(header);
 
     const ul = document.createElement("ul");

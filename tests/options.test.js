@@ -2,7 +2,7 @@ const flushPromises = () => new Promise((r) => setImmediate(r));
 
 const OPTIONS_DOM = `
   <div class="segmented">
-    <button class="seg-btn" data-tab="toread">TO READ <span id="toread-badge" class="seg-badge hidden">0</span></button>
+    <button class="seg-btn" data-tab="toread">Readlist <span id="toread-badge" class="seg-badge hidden">0</span></button>
     <button class="seg-btn seg-btn--active" data-tab="saved">Saved</button>
     <button class="seg-btn" data-tab="blocked">Blocked</button>
   </div>
@@ -756,15 +756,21 @@ describe('renderToReadList', () => {
     ({ renderToReadList } = require('../options'));
   });
 
-  test('groups entries into deadline sections with counts in headers', () => {
+  test('groups entries into deadline sections with count pills in headers', () => {
     renderToReadList([
       toreadEntry('a', Date.now() - 2 * DAY_MS),
       toreadEntry('b', Date.now() - 3 * DAY_MS),
       toreadEntry('c', Date.now() + 5 * DAY_MS),
     ]);
 
-    const headers = [...document.querySelectorAll('.toread-section-header')].map((h) => h.textContent);
-    expect(headers).toEqual(['Overdue (2)', '7 days (1)']);
+    const headers = [...document.querySelectorAll('.toread-section-header')].map((h) => ({
+      label: h.firstChild.textContent,
+      count: h.querySelector('.count.count--blue').textContent,
+    }));
+    expect(headers).toEqual([
+      { label: 'Overdue', count: '2' },
+      { label: '7 days', count: '1' },
+    ]);
   });
 
   test('empty sections are not rendered', () => {
