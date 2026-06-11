@@ -854,6 +854,35 @@ describe('renderToReadList', () => {
     );
   });
 
+  test('rows animate in on their first render', () => {
+    renderToReadList([toreadEntry('a', Date.now() + DAY_MS / 2)]);
+
+    expect(
+      document.querySelector('.toread-entry').classList.contains('toread-entry--entering'),
+    ).toBe(true);
+  });
+
+  test('surviving rows do not replay the entry animation on re-render', () => {
+    const a = toreadEntry('a', Date.now() + DAY_MS / 2);
+    const b = toreadEntry('b', Date.now() + 5 * DAY_MS);
+    renderToReadList([a, b]);
+    renderToReadList([a]); // b removed → a re-rendered but already on screen
+
+    const row = document.querySelector('.toread-entry');
+    expect(row.classList.contains('toread-entry--entering')).toBe(false);
+  });
+
+  test('a newly added row animates in while existing rows stay static', () => {
+    const a = toreadEntry('a', Date.now() + DAY_MS / 2);
+    const b = toreadEntry('b', Date.now() + 5 * DAY_MS);
+    renderToReadList([a]);
+    renderToReadList([a, b]);
+
+    const entering = [...document.querySelectorAll('.toread-entry--entering')];
+    expect(entering).toHaveLength(1);
+    expect(entering[0].querySelector('.entry-site').textContent).toBe('Title b');
+  });
+
   test('each item renders favicon, deadline chip, Mark read and Remove buttons', () => {
     renderToReadList([toreadEntry('a', Date.now() + DAY_MS / 2)]);
 

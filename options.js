@@ -206,10 +206,16 @@ const TOREAD_SECTIONS = [
 
 const DEADLINE_OPTIONS = ["Tomorrow", "3 days", "7 days", "30 days", "3 months"];
 
+// URLs present in the previous render — rows already on screen must not
+// replay the entry animation when the list is rebuilt.
+let renderedToReadUrls = new Set();
+
 function renderToReadList(entries) {
   if (!toreadSectionsEl) return;
 
   const toread = entries.filter((p) => p.readBy != null);
+  const previousUrls = renderedToReadUrls;
+  renderedToReadUrls = new Set(toread.map((p) => p.url));
 
   if (toreadBadge) {
     toreadBadge.textContent = toread.length;
@@ -243,16 +249,18 @@ function renderToReadList(entries) {
 
     const ul = document.createElement("ul");
     ul.className = "toread-list";
-    for (const entry of items) ul.appendChild(buildToReadItem(entry, key));
+    for (const entry of items) {
+      ul.appendChild(buildToReadItem(entry, key, !previousUrls.has(entry.url)));
+    }
     section.appendChild(ul);
 
     toreadSectionsEl.appendChild(section);
   }
 }
 
-function buildToReadItem(entry, sectionKey) {
+function buildToReadItem(entry, sectionKey, isNew) {
   const li = document.createElement("li");
-  li.className = "toread-entry";
+  li.className = isNew ? "toread-entry toread-entry--entering" : "toread-entry";
 
   const faviconWrap = document.createElement("div");
   faviconWrap.className = "favicon-wrap";
