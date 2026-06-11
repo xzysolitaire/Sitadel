@@ -164,7 +164,6 @@ async function handleSave() {
   };
   const { [SAVED_KEY]: saved = [] } = await chrome.storage.sync.get(SAVED_KEY);
   await chrome.storage.sync.set({ [SAVED_KEY]: [...saved, newEntry] });
-  showSaveLabel(newEntry);
   showFeedback("Saved!", "success");
   setSaveState("undo");
   undoTimer = setTimeout(() => {
