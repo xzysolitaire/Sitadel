@@ -76,6 +76,7 @@ function updateSecondaryButton(animate) {
     swapButtonContent(blockBtn, SECONDARY_BTN_CONTENT[next], animate);
     secondaryState = next;
   }
+  blockBtn.classList.toggle("btn-unsave", next === "unsave");
 
   if (next === "block") {
     if (siteBlocked) {
@@ -122,12 +123,18 @@ function setFavicon(favIconUrl) {
   faviconEl.onerror = () => { wrap.style.display = "none"; };
 }
 
+let feedbackTimer = null;
+
 function showFeedback(msg, type) {
   feedbackEl.textContent = msg;
   feedbackEl.className = `feedback ${type}`;
-  setTimeout(() => {
-    feedbackEl.className = "feedback hidden";
-  }, 2500);
+  clearTimeout(feedbackTimer);
+  feedbackTimer = setTimeout(() => {
+    feedbackEl.classList.add("feedback-out");
+    feedbackTimer = setTimeout(() => {
+      feedbackEl.className = "feedback hidden";
+    }, 200);
+  }, 2300);
 }
 
 async function init() {
