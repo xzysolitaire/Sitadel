@@ -2,9 +2,20 @@ const flushPromises = () => new Promise((r) => setImmediate(r));
 
 const POPUP_DOM = `
   <span id="hostname">—</span>
+  <div id="save-label" class="save-label hidden"></div>
   <button id="save-btn" class="btn btn-save" disabled><span class="btn-label">Save</span></button>
   <button id="block-btn" disabled><span class="btn-label">Block this site</span></button>
   <button id="options-btn">Options</button>
+  <div id="deadline-picker" class="deadline-picker">
+    <div class="deadline-picker-inner">
+      <button class="pill" data-option="Tomorrow">Tomorrow</button>
+      <button class="pill" data-option="3 days">3 days</button>
+      <button class="pill" data-option="7 days">7 days</button>
+      <button class="pill" data-option="30 days">30 days</button>
+      <button class="pill" data-option="3 months">3 months</button>
+      <button class="pill pill--backlog" data-option="backlog">Backlog</button>
+    </div>
+  </div>
   <div id="feedback" class="feedback hidden"></div>
 `;
 
@@ -42,6 +53,25 @@ describe('popup init', () => {
     expect(btn.textContent).toBe('Blocked');
   });
 
+  test('disables Save on a blocked site (mutually exclusive with blocking)', async () => {
+    setupPopup('https://reddit.com', [{ site: 'reddit.com', blockedAt: 0 }]);
+    await flushPromises();
+
+    expect(document.getElementById('save-btn').disabled).toBe(true);
+  });
+
+  test('blocking the current site disables Save live', async () => {
+    setupPopup('https://reddit.com', []);
+    await flushPromises();
+    expect(document.getElementById('save-btn').disabled).toBe(false);
+
+    chrome.storage.sync.get.mockResolvedValue({ blockedSites: [] });
+    document.getElementById('block-btn').click();
+    await flushPromises();
+
+    expect(document.getElementById('save-btn').disabled).toBe(true);
+  });
+
   test('does nothing for non-http/https tabs', async () => {
     setupPopup('chrome://settings');
     await flushPromises();
@@ -64,13 +94,20 @@ describe('save button', () => {
   const TAB_URL = 'https://github.com/anthropics/sdk';
   const SAVED_ENTRY = { url: TAB_URL, site: 'github.com', pageType: 'article', savedAt: 1000 };
 
-  test('shows "Unsave" on init when URL is already saved', async () => {
+  test('shows "Readlist" on init when URL is saved without a deadline', async () => {
     setupPopup(TAB_URL, [], [SAVED_ENTRY]);
     await flushPromises();
 
     const btn = document.getElementById('save-btn');
-    expect(btn.querySelector('.btn-label').textContent).toBe('Unsave');
+    expect(btn.querySelector('.btn-label').textContent).toBe('Readlist');
     expect(btn.disabled).toBe(false);
+  });
+
+  test('shows "Mark read" on init when URL is saved with a deadline', async () => {
+    setupPopup(TAB_URL, [], [{ ...SAVED_ENTRY, readBy: Date.now() + 86400000 }]);
+    await flushPromises();
+
+    expect(document.querySelector('#save-btn .btn-label').textContent).toBe('Mark read');
   });
 
   test('shows "Save" on init when URL is not yet saved', async () => {
@@ -80,7 +117,7 @@ describe('save button', () => {
     expect(document.getElementById('save-btn').querySelector('.btn-label').textContent).toBe('Save');
   });
 
-  test('clicking Save calls executeScript twice, stores entry, and shows "Unsave"', async () => {
+  test('clicking Save calls executeScript twice, stores entry, and shows "Undo"', async () => {
     setupPopup(TAB_URL);
     await flushPromises();
 
@@ -92,19 +129,20 @@ describe('save button', () => {
     expect(chrome.storage.sync.set).toHaveBeenCalledWith({
       savedPages: [expect.objectContaining({ url: TAB_URL, site: 'github.com', pageType: 'article', title: expect.any(String) })],
     });
-    expect(document.getElementById('save-btn').querySelector('.btn-label').textContent).toBe('Unsave');
+    expect(document.getElementById('save-btn').querySelector('.btn-label').textContent).toBe('Undo');
   });
 
-  test('clicking Unsave removes entry from storage and shows "Save"', async () => {
+  test('clicking Unsave (secondary) removes entry from storage and restores Save · Block', async () => {
     setupPopup(TAB_URL, [], [SAVED_ENTRY]);
     await flushPromises();
 
     chrome.storage.sync.get.mockResolvedValue({ savedPages: [SAVED_ENTRY] });
-    document.getElementById('save-btn').click();
+    document.getElementById('block-btn').click(); // Unsave
     await flushPromises();
 
-    expect(chrome.storage.sync.set).toHaveBeenCalledWith({ savedPages: [] });
-    expect(document.getElementById('save-btn').querySelector('.btn-label').textContent).toBe('Save');
+    expect(chrome.storage.sync.set).toHaveBeenLastCalledWith({ savedPages: [] });
+    expect(document.querySelector('#save-btn .btn-label').textContent).toBe('Save');
+    expect(document.querySelector('#block-btn .btn-label').textContent).toBe('Block');
   });
 
   test('falls back to pageType "article" when executeScript rejects', async () => {
@@ -240,6 +278,7 @@ describe('unsave action — additional', () => {
   const entry = { url: TAB_URL, site: 'github.com', pageType: 'article', savedAt: 1 };
 
   beforeEach(async () => {
+    // Saved page → secondary slot shows Unsave
     setupPopup(TAB_URL, [], [entry]);
     await flushPromises();
   });
@@ -248,7 +287,7 @@ describe('unsave action — additional', () => {
     chrome.storage.sync.get.mockResolvedValue({
       savedPages: [entry, { url: OTHER_URL, site: 'github.com', pageType: 'article', savedAt: 2 }],
     });
-    document.getElementById('save-btn').click();
+    document.getElementById('block-btn').click(); // Unsave
     await flushPromises();
 
     const saved = chrome.storage.sync.set.mock.calls[0][0].savedPages;
@@ -258,7 +297,7 @@ describe('unsave action — additional', () => {
 
   test('shows "Unsaved" feedback after unsaving', async () => {
     chrome.storage.sync.get.mockResolvedValue({ savedPages: [entry] });
-    document.getElementById('save-btn').click();
+    document.getElementById('block-btn').click(); // Unsave
     await flushPromises();
 
     const feedback = document.getElementById('feedback');
@@ -268,7 +307,7 @@ describe('unsave action — additional', () => {
 
   test('save button stays enabled after unsaving', async () => {
     chrome.storage.sync.get.mockResolvedValue({ savedPages: [entry] });
-    document.getElementById('save-btn').click();
+    document.getElementById('block-btn').click(); // Unsave
     await flushPromises();
 
     expect(document.getElementById('save-btn').disabled).toBe(false);
@@ -312,5 +351,331 @@ describe('block button', () => {
 
     expect(chrome.storage.sync.set).not.toHaveBeenCalled();
     expect(document.getElementById('feedback').classList.contains('hidden')).toBe(false);
+  });
+});
+
+// ─── readlist: undo flow ─────────────────────────────────────────────────────
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+const saveLabelText = () => document.querySelector('#save-btn .btn-label').textContent;
+// Fake-timer-safe flush: drains microtasks only (flushPromises relies on setImmediate)
+const flushMicrotasks = async () => {
+  for (let i = 0; i < 10; i++) await Promise.resolve();
+};
+
+describe('readlist: undo flow', () => {
+  const TAB_URL = 'https://github.com/foo';
+
+  afterEach(() => jest.useRealTimers());
+
+  test('Save tap writes the entry immediately and shows Undo', async () => {
+    setupPopup(TAB_URL);
+    await flushPromises();
+
+    chrome.storage.sync.get.mockResolvedValue({ savedPages: [] });
+    document.getElementById('save-btn').click();
+    await flushPromises();
+
+    expect(chrome.storage.sync.set).toHaveBeenCalledWith({
+      savedPages: [expect.objectContaining({ url: TAB_URL })],
+    });
+    expect(saveLabelText()).toBe('Undo');
+  });
+
+  test('Undo tap deletes the entry and returns to Save', async () => {
+    setupPopup(TAB_URL);
+    await flushPromises();
+
+    chrome.storage.sync.get.mockResolvedValue({ savedPages: [] });
+    document.getElementById('save-btn').click(); // Save
+    await flushPromises();
+
+    const written = chrome.storage.sync.set.mock.calls[0][0].savedPages;
+    chrome.storage.sync.get.mockResolvedValue({ savedPages: written });
+    chrome.storage.sync.set.mockClear();
+
+    document.getElementById('save-btn').click(); // Undo
+    await flushPromises();
+
+    expect(chrome.storage.sync.set).toHaveBeenCalledWith({ savedPages: [] });
+    expect(saveLabelText()).toBe('Save');
+    expect(document.getElementById('save-label').classList.contains('hidden')).toBe(true);
+  });
+
+  test('Undo window expiry transitions the button to Readlist', async () => {
+    jest.useFakeTimers();
+    setupPopup(TAB_URL);
+    await flushMicrotasks();
+
+    chrome.storage.sync.get.mockResolvedValue({ savedPages: [] });
+    document.getElementById('save-btn').click();
+    await flushMicrotasks();
+    expect(saveLabelText()).toBe('Undo');
+
+    jest.advanceTimersByTime(2000);
+    expect(saveLabelText()).toBe('Readlist');
+  });
+});
+
+// ─── readlist: deadline picker ───────────────────────────────────────────────
+
+describe('readlist: deadline picker', () => {
+  const TAB_URL = 'https://github.com/foo';
+  const entry = { url: TAB_URL, site: 'github.com', pageType: 'article', savedAt: 1 };
+
+  beforeEach(async () => {
+    setupPopup(TAB_URL, [], [entry]);
+    await flushPromises();
+  });
+
+  test('tapping Readlist expands the picker', () => {
+    document.getElementById('save-btn').click();
+    expect(document.getElementById('deadline-picker').classList.contains('open')).toBe(true);
+  });
+
+  test('selecting a deadline writes readBy and transitions to Mark read', async () => {
+    document.getElementById('save-btn').click();
+
+    chrome.storage.sync.get.mockResolvedValue({ savedPages: [entry] });
+    document.querySelector('.pill[data-option="7 days"]').click();
+    await flushPromises();
+
+    const saved = chrome.storage.sync.set.mock.calls[0][0].savedPages[0];
+    expect(saved.readBy).toBeGreaterThan(Date.now() + 6.9 * DAY_MS);
+    expect(saved.readBy).toBeLessThanOrEqual(Date.now() + 7 * DAY_MS);
+    expect(saveLabelText()).toBe('Mark read');
+    expect(document.getElementById('deadline-picker').classList.contains('open')).toBe(false);
+  });
+
+  test('Backlog adds the page to the readlist and transitions to Mark read', async () => {
+    document.getElementById('save-btn').click();
+
+    chrome.storage.sync.get.mockResolvedValue({ savedPages: [entry] });
+    document.querySelector('.pill[data-option="backlog"]').click();
+    await flushPromises();
+
+    const saved = chrome.storage.sync.set.mock.calls[0][0].savedPages[0];
+    expect(saved.onReadlist).toBe(true);
+    expect(saved).not.toHaveProperty('readBy');
+    expect(saveLabelText()).toBe('Mark read');
+    expect(document.getElementById('deadline-picker').classList.contains('open')).toBe(false);
+  });
+});
+
+// ─── readlist: mark read & unsave ────────────────────────────────────────────
+
+describe('readlist: mark read', () => {
+  const TAB_URL = 'https://github.com/foo';
+  const entry = { url: TAB_URL, site: 'github.com', pageType: 'article', savedAt: 1, readBy: Date.now() + DAY_MS };
+
+  beforeEach(async () => {
+    setupPopup(TAB_URL, [], [entry]);
+    await flushPromises();
+  });
+
+  test('Mark read tap takes the page off the readlist and shows Readlist again', async () => {
+    chrome.storage.sync.get.mockResolvedValue({ savedPages: [entry] });
+    document.getElementById('save-btn').click();
+    await flushPromises();
+
+    const saved = chrome.storage.sync.set.mock.calls[0][0].savedPages;
+    expect(saved).toHaveLength(1);
+    expect(saved[0]).not.toHaveProperty('readBy');
+    expect(saved[0]).not.toHaveProperty('onReadlist');
+    expect(saveLabelText()).toBe('Readlist');
+    expect(document.querySelector('#block-btn .btn-label').textContent).toBe('Unsave');
+  });
+
+  test('a Backlog page (on the readlist, no deadline) opens as Mark read', async () => {
+    const backlog = { url: TAB_URL, site: 'github.com', pageType: 'article', savedAt: 1, onReadlist: true };
+    setupPopup(TAB_URL, [], [backlog]);
+    await flushPromises();
+
+    expect(saveLabelText()).toBe('Mark read');
+    expect(document.querySelector('#block-btn .btn-label').textContent).toBe('Unsave');
+  });
+
+  test('a plain saved page (not on the readlist) opens as Readlist', async () => {
+    const plain = { url: TAB_URL, site: 'github.com', pageType: 'article', savedAt: 1 };
+    setupPopup(TAB_URL, [], [plain]);
+    await flushPromises();
+
+    expect(saveLabelText()).toBe('Readlist');
+  });
+
+  test('label crossfades from due text to saved text on Mark read', async () => {
+    expect(document.getElementById('save-label').textContent).toMatch(/^Due in/);
+
+    chrome.storage.sync.get.mockResolvedValue({ savedPages: [entry] });
+    document.getElementById('save-btn').click();
+    await flushPromises();
+
+    expect(document.getElementById('save-label').textContent).toMatch(/^Saved /);
+    expect(document.getElementById('save-label').classList.contains('label-saved')).toBe(true);
+  });
+});
+
+// ─── readlist: due-date label ────────────────────────────────────────────────
+
+describe('readlist: due-date label', () => {
+  const TAB_URL = 'https://github.com/foo';
+  const base = { url: TAB_URL, site: 'github.com', pageType: 'article', savedAt: new Date('2026-06-01T09:00:00').getTime() };
+  const labelEl = () => document.getElementById('save-label');
+
+  test('hidden when the page is not saved', async () => {
+    setupPopup(TAB_URL);
+    await flushPromises();
+
+    expect(labelEl().classList.contains('hidden')).toBe(true);
+  });
+
+  test('shows saved date with label-saved when saved without deadline', async () => {
+    setupPopup(TAB_URL, [], [base]);
+    await flushPromises();
+
+    expect(labelEl().textContent).toBe('Saved Jun 1, 2026');
+    expect(labelEl().classList.contains('label-saved')).toBe(true);
+  });
+
+  test('shows due-in text with label-due for a future deadline', async () => {
+    setupPopup(TAB_URL, [], [{ ...base, readBy: Date.now() + 3 * DAY_MS }]);
+    await flushPromises();
+
+    expect(labelEl().textContent).toMatch(/^Due in 3 days · /);
+    expect(labelEl().classList.contains('label-due')).toBe(true);
+  });
+
+  test('shows overdue text with label-overdue for a past deadline', async () => {
+    setupPopup(TAB_URL, [], [{ ...base, readBy: Date.now() - 2 * DAY_MS }]);
+    await flushPromises();
+
+    expect(labelEl().textContent).toMatch(/2 days overdue · /);
+    expect(labelEl().classList.contains('label-overdue')).toBe(true);
+  });
+
+  test('stays hidden after a Save tap in the same session', async () => {
+    setupPopup(TAB_URL);
+    await flushPromises();
+
+    chrome.storage.sync.get.mockResolvedValue({ savedPages: [] });
+    document.getElementById('save-btn').click();
+    await flushPromises();
+
+    expect(labelEl().classList.contains('hidden')).toBe(true);
+  });
+
+  test('appears once a deadline is picked after saving', async () => {
+    setupPopup(TAB_URL);
+    await flushPromises();
+
+    chrome.storage.sync.get.mockResolvedValue({ savedPages: [] });
+    document.getElementById('save-btn').click(); // Save → Undo state
+    await flushPromises();
+
+    const written = chrome.storage.sync.set.mock.calls[0][0].savedPages;
+    chrome.storage.sync.get.mockResolvedValue({ savedPages: written });
+    document.querySelector('.pill[data-option="3 days"]').click();
+    await flushPromises();
+
+    expect(labelEl().classList.contains('hidden')).toBe(false);
+    expect(labelEl().textContent).toMatch(/^Due in 3 days · /);
+  });
+});
+
+// ─── contextual secondary button (Block ↔ Unsave) ────────────────────────────
+
+describe('secondary button shows Unsave while the page is saved', () => {
+  const TAB_URL = 'https://github.com/foo';
+  const entry = { url: TAB_URL, site: 'github.com', pageType: 'article', savedAt: 1 };
+  const blockBtn = () => document.getElementById('block-btn');
+  const secondaryLabel = () => document.querySelector('#block-btn .btn-label').textContent;
+
+  afterEach(() => jest.useRealTimers());
+
+  test('shows Unsave on init when the page is saved without a deadline', async () => {
+    setupPopup(TAB_URL, [], [entry]);
+    await flushPromises();
+
+    expect(secondaryLabel()).toBe('Unsave');
+    expect(blockBtn().disabled).toBe(false);
+  });
+
+  test('shows Unsave on init when the page is saved with a deadline', async () => {
+    setupPopup(TAB_URL, [], [{ ...entry, readBy: Date.now() + DAY_MS }]);
+    await flushPromises();
+
+    expect(secondaryLabel()).toBe('Unsave');
+  });
+
+  test('stays as disabled Block during the Undo window', async () => {
+    setupPopup(TAB_URL);
+    await flushPromises();
+    expect(blockBtn().disabled).toBe(false);
+
+    chrome.storage.sync.get.mockResolvedValue({ savedPages: [] });
+    document.getElementById('save-btn').click(); // Save → Undo window
+    await flushPromises();
+
+    expect(secondaryLabel()).not.toBe('Unsave');
+    expect(blockBtn().disabled).toBe(true);
+  });
+
+  test('re-enables Block after Undo', async () => {
+    setupPopup(TAB_URL);
+    await flushPromises();
+
+    chrome.storage.sync.get.mockResolvedValue({ savedPages: [] });
+    document.getElementById('save-btn').click(); // Save
+    await flushPromises();
+    document.getElementById('save-btn').click(); // Undo
+    await flushPromises();
+
+    expect(blockBtn().disabled).toBe(false);
+    expect(secondaryLabel()).not.toBe('Unsave');
+  });
+
+  test('transitions to Unsave when the Undo window expires', async () => {
+    jest.useFakeTimers();
+    setupPopup(TAB_URL);
+    await flushMicrotasks();
+
+    chrome.storage.sync.get.mockResolvedValue({ savedPages: [] });
+    document.getElementById('save-btn').click();
+    await flushMicrotasks();
+
+    jest.advanceTimersByTime(2000);
+
+    expect(saveLabelText()).toBe('Readlist');
+    expect(secondaryLabel()).toBe('Unsave');
+    expect(blockBtn().disabled).toBe(false);
+  });
+
+  test('Unsave tap deletes the entry and restores Save · Block', async () => {
+    setupPopup(TAB_URL, [], [entry]);
+    await flushPromises();
+
+    chrome.storage.sync.get.mockResolvedValue({ savedPages: [entry] });
+    blockBtn().click(); // Unsave
+    await flushPromises();
+
+    expect(chrome.storage.sync.set).toHaveBeenCalledWith({ savedPages: [] });
+    expect(saveLabelText()).toBe('Save');
+    expect(secondaryLabel()).toBe('Block');
+    expect(blockBtn().disabled).toBe(false);
+  });
+
+  test('restores disabled Blocked state after Unsave when the site is blocked', async () => {
+    setupPopup(TAB_URL, [{ site: 'github.com', blockedAt: 0 }], [entry]);
+    await flushPromises();
+
+    expect(secondaryLabel()).toBe('Unsave');
+    expect(blockBtn().disabled).toBe(false);
+
+    chrome.storage.sync.get.mockResolvedValue({ savedPages: [entry] });
+    blockBtn().click(); // Unsave
+    await flushPromises();
+
+    expect(secondaryLabel()).toBe('Blocked');
+    expect(blockBtn().disabled).toBe(true);
   });
 });

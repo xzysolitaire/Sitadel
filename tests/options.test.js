@@ -1,9 +1,22 @@
 const flushPromises = () => new Promise((r) => setImmediate(r));
+// The roller fades out before it leaves the DOM (200ms fallback in jsdom).
+const waitRollerExit = () => new Promise((r) => setTimeout(r, 220));
 
 const OPTIONS_DOM = `
   <div class="segmented">
+    <button class="seg-btn" data-tab="toread">Readlist <span id="toread-badge" class="seg-badge hidden">0</span></button>
     <button class="seg-btn seg-btn--active" data-tab="saved">Saved</button>
     <button class="seg-btn" data-tab="blocked">Blocked</button>
+  </div>
+
+  <div id="tab-toread" class="tab-panel hidden">
+    <div id="toread-sections"></div>
+    <div id="toread-empty-state" class="empty-state">No pages with a read-by deadline yet.</div>
+    <div id="open-list-area" class="open-list-area hidden">
+      <div id="open-list-picker" class="open-list-picker hidden"></div>
+      <button id="open-list-btn">Open List</button>
+    </div>
+    <input type="checkbox" id="unsave-on-remove-toggle" />
   </div>
 
   <div id="tab-saved" class="tab-panel">
@@ -244,6 +257,54 @@ describe('tab switching', () => {
     expect(document.getElementById('tab-saved').classList.contains('hidden')).toBe(false);
     expect(document.getElementById('tab-blocked').classList.contains('hidden')).toBe(true);
   });
+
+  test('clicking TO READ tab shows toread panel and hides the others', () => {
+    document.querySelector('.seg-btn[data-tab="toread"]').click();
+    expect(document.getElementById('tab-toread').classList.contains('hidden')).toBe(false);
+    expect(document.getElementById('tab-saved').classList.contains('hidden')).toBe(true);
+    expect(document.getElementById('tab-blocked').classList.contains('hidden')).toBe(true);
+    expect(
+      document.querySelector('.seg-btn[data-tab="toread"]').classList.contains('seg-btn--active'),
+    ).toBe(true);
+  });
+});
+
+// ─── default tab logic ───────────────────────────────────────────────────────
+
+describe('default tab on load', () => {
+  const DAY_MS = 24 * 60 * 60 * 1000;
+
+  async function loadWith(savedPages) {
+    document.body.innerHTML = OPTIONS_DOM;
+    chrome.storage.sync.get.mockResolvedValue({ blockedSites: [], savedPages });
+    jest.resetModules();
+    require('../options');
+    await flushPromises();
+  }
+
+  test('activates TO READ tab when an entry has a readBy deadline', async () => {
+    await loadWith([
+      { url: 'https://a.com', site: 'a.com', pageType: 'article', savedAt: 1, readBy: Date.now() + DAY_MS },
+    ]);
+
+    expect(document.getElementById('tab-toread').classList.contains('hidden')).toBe(false);
+    expect(document.getElementById('tab-saved').classList.contains('hidden')).toBe(true);
+  });
+
+  test('activates Saved tab when no entry has a readBy deadline', async () => {
+    await loadWith([
+      { url: 'https://a.com', site: 'a.com', pageType: 'article', savedAt: 1 },
+    ]);
+
+    expect(document.getElementById('tab-saved').classList.contains('hidden')).toBe(false);
+    expect(document.getElementById('tab-toread').classList.contains('hidden')).toBe(true);
+  });
+
+  test('activates Saved tab when there are no saved pages at all', async () => {
+    await loadWith([]);
+
+    expect(document.getElementById('tab-saved').classList.contains('hidden')).toBe(false);
+  });
 });
 
 // ─── humaniseSite ────────────────────────────────────────────────────────────
@@ -422,6 +483,118 @@ describe('renderSavedList — entry structure', () => {
     const opts = [...document.getElementById('filter-site-select').options];
     const githubOpt = opts.find((o) => o.value === 'github.com');
     expect(githubOpt.textContent).toBe('Github');
+  });
+});
+
+// ─── Saved tab — readlist toggle ─────────────────────────────────────────────
+
+describe('Saved tab readlist toggle', () => {
+  async function loadOptions(savedPages) {
+    document.body.innerHTML = OPTIONS_DOM;
+    chrome.storage.sync.get.mockResolvedValue({ blockedSites: [], savedPages });
+    jest.resetModules();
+    require('../options');
+    await flushPromises();
+  }
+
+  const savedToggle = () => document.querySelector('.saved-entry .readlist-toggle');
+
+  test('a plain saved page shows the add (not-on-list) toggle', async () => {
+    await loadOptions([plainSaved('https://x.com/a')]);
+    const btn = savedToggle();
+    expect(btn.classList.contains('is-on')).toBe(false);
+    expect(btn.getAttribute('aria-pressed')).toBe('false');
+  });
+
+  test('a readlist page (backlog or deadlined) shows the on-list toggle', async () => {
+    await loadOptions([backlogItem('https://x.com/b'), toreadEntry('https://x.com/c', Date.now() + DAY_MS)]);
+    const toggles = document.querySelectorAll('.saved-entry .readlist-toggle');
+    expect(toggles).toHaveLength(2);
+    expect([...toggles].every((t) => t.classList.contains('is-on'))).toBe(true);
+  });
+
+  const rollerOption = (label) =>
+    [...document.querySelectorAll('.deadline-roller-option')].find((o) => o.textContent === label);
+
+  test('tapping add opens the picker with the add-to-readlist options', async () => {
+    await loadOptions([plainSaved('https://x.com/a')]);
+    savedToggle().click();
+
+    const options = [...document.querySelectorAll('.deadline-roller-option')].map((o) => o.textContent);
+    expect(options).toEqual(['Tomorrow', '3 days', '7 days', '30 days', '3 months', 'Backlog']);
+  });
+
+  test('choosing Backlog from the picker adds it (no deadline) and flips the button', async () => {
+    await loadOptions([plainSaved('https://x.com/a')]);
+    savedToggle().click();
+    rollerOption('Backlog').click();
+    await flushPromises();
+
+    const saved = chrome.storage.sync.set.mock.calls[0][0].savedPages[0];
+    expect(saved.onReadlist).toBe(true);
+    expect(saved).not.toHaveProperty('readBy');
+    expect(savedToggle().classList.contains('is-on')).toBe(true);
+    // synced into the (hidden) Readlist tab's Backlog section
+    expect(document.querySelector('.toread-section--backlog .toread-entry')).not.toBeNull();
+  });
+
+  test('choosing a deadline from the picker adds it with readBy in its bucket', async () => {
+    await loadOptions([plainSaved('https://x.com/a')]);
+    savedToggle().click();
+    rollerOption('7 days').click();
+    await flushPromises();
+
+    const saved = chrome.storage.sync.set.mock.calls[0][0].savedPages[0];
+    expect(saved.onReadlist).toBe(true);
+    expect(saved.readBy).toBeGreaterThan(Date.now() + 6.9 * DAY_MS);
+    expect(savedToggle().classList.contains('is-on')).toBe(true);
+    expect(document.querySelector('.toread-section--week .toread-entry')).not.toBeNull();
+  });
+
+  test('tapping on-list removes it from the readlist but keeps it Saved', async () => {
+    await loadOptions([backlogItem('https://x.com/b')]);
+    savedToggle().click();
+    await flushPromises();
+
+    const saved = chrome.storage.sync.set.mock.calls[0][0].savedPages;
+    expect(saved).toHaveLength(1);
+    expect(saved[0]).not.toHaveProperty('onReadlist');
+    expect(savedToggle().classList.contains('is-on')).toBe(false);
+    expect(document.querySelectorAll('.saved-entry')).toHaveLength(1);
+    expect(document.querySelectorAll('.toread-entry')).toHaveLength(0);
+  });
+
+  test('toggling off a deadlined page also clears its deadline', async () => {
+    await loadOptions([toreadEntry('https://x.com/c', Date.now() + DAY_MS)]);
+    savedToggle().click();
+    await flushPromises();
+
+    const saved = chrome.storage.sync.set.mock.calls[0][0].savedPages[0];
+    expect(saved).not.toHaveProperty('readBy');
+    expect(saved).not.toHaveProperty('onReadlist');
+  });
+
+  test('the add write does not rebuild the Saved list (no flash)', async () => {
+    await loadOptions([plainSaved('https://x.com/a')]);
+    const rowBefore = document.querySelector('.saved-entry');
+
+    savedToggle().click();
+    rollerOption('Backlog').click();
+    await flushPromises();
+
+    // Echo our own write back through onChanged with reordered object keys —
+    // chrome.storage doesn't preserve key order, which is what broke the old
+    // string-compare guard. The self-write counter must skip it regardless.
+    const written = chrome.storage.sync.set.mock.calls[0][0].savedPages;
+    const reordered = written.map((p) => {
+      const out = {};
+      Object.keys(p).sort().forEach((k) => { out[k] = p[k]; });
+      return out;
+    });
+    const listener = chrome.storage.onChanged.addListener.mock.calls[0][0];
+    listener({ savedPages: { newValue: reordered } }, 'sync');
+
+    expect(document.querySelector('.saved-entry')).toBe(rowBefore);
   });
 });
 
@@ -671,5 +844,805 @@ describe('unblockCooldown toggle', () => {
 
     const buttons = document.querySelectorAll('.remove-btn');
     expect([...buttons].every((b) => !b.disabled)).toBe(true);
+  });
+});
+
+// ─── renderToReadList ────────────────────────────────────────────────────────
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+const toreadEntry = (url, readBy, extra = {}) => ({
+  url,
+  site: 'github.com',
+  pageType: 'article',
+  savedAt: 1000,
+  title: `Title ${url}`,
+  readBy,
+  ...extra,
+});
+
+// A readlist item with no deadline (on the readlist via the onReadlist flag).
+const backlogItem = (url, extra = {}) => ({
+  url,
+  site: 'x.com',
+  pageType: 'article',
+  savedAt: 1000,
+  title: `Title ${url}`,
+  onReadlist: true,
+  ...extra,
+});
+
+// A plain saved page that was never added to the readlist.
+const plainSaved = (url, extra = {}) => ({
+  url,
+  site: 'x.com',
+  pageType: 'article',
+  savedAt: 1,
+  ...extra,
+});
+
+describe('renderToReadList', () => {
+  let renderToReadList;
+
+  beforeEach(() => {
+    document.body.innerHTML = OPTIONS_DOM;
+    chrome.storage.sync.get.mockResolvedValue({ blockedSites: [], savedPages: [] });
+    jest.resetModules();
+    ({ renderToReadList } = require('../options'));
+  });
+
+  test('groups entries into deadline sections with count pills in headers', () => {
+    renderToReadList([
+      toreadEntry('a', Date.now() - 2 * DAY_MS),
+      toreadEntry('b', Date.now() - 3 * DAY_MS),
+      toreadEntry('c', Date.now() + 5 * DAY_MS),
+    ]);
+
+    const headers = [...document.querySelectorAll('.toread-section-header')].map((h) => ({
+      label: h.firstChild.textContent,
+      count: h.querySelector('.count.count--blue').textContent,
+    }));
+    expect(headers).toEqual([
+      { label: 'Past due', count: '2' },
+      { label: 'Within one week', count: '1' },
+      { label: 'Within one month', count: '0' },
+      { label: 'One month+', count: '0' },
+      { label: 'Backlog', count: '0' },
+    ]);
+  });
+
+  test('all sections are rendered even when empty', () => {
+    renderToReadList([toreadEntry('a', Date.now() + 5 * DAY_MS)]);
+
+    expect(document.querySelectorAll('.toread-section')).toHaveLength(5);
+    expect(document.querySelector('.toread-section--week')).not.toBeNull();
+  });
+
+  test('no sections are rendered when nothing is saved', () => {
+    renderToReadList([]);
+    expect(document.querySelectorAll('.toread-section')).toHaveLength(0);
+  });
+
+  test('non-empty Backlog is collapsed by default while populated sections are expanded', () => {
+    renderToReadList([
+      toreadEntry('a', Date.now() - 2 * DAY_MS), // pastdue
+      toreadEntry('b', Date.now() + 5 * DAY_MS), // week
+      backlogItem('c'), // backlog
+    ]);
+
+    expect(document.querySelector('.toread-section--backlog').classList.contains('collapsed')).toBe(true);
+    expect(document.querySelector('.toread-section--week').classList.contains('collapsed')).toBe(false);
+    expect(document.querySelector('.toread-section--pastdue').classList.contains('collapsed')).toBe(false);
+  });
+
+  test('an empty section is forced collapsed and marked empty', () => {
+    renderToReadList([toreadEntry('a', Date.now() + 5 * DAY_MS)]); // only week has an item
+
+    const month = document.querySelector('.toread-section--month');
+    expect(month.classList.contains('collapsed')).toBe(true);
+    expect(month.classList.contains('toread-section--empty')).toBe(true);
+  });
+
+  test('tapping an empty section header has no effect', () => {
+    renderToReadList([toreadEntry('a', Date.now() + 5 * DAY_MS)]);
+
+    const month = document.querySelector('.toread-section--month');
+    month.querySelector('.list-section-toggle').click();
+    expect(month.classList.contains('collapsed')).toBe(true);
+  });
+
+  test('toggling a populated section header flips its collapsed state', () => {
+    renderToReadList([toreadEntry('a', Date.now() + 5 * DAY_MS)]);
+
+    const week = document.querySelector('.toread-section--week');
+    week.querySelector('.list-section-toggle').click();
+    expect(week.classList.contains('collapsed')).toBe(true);
+    week.querySelector('.list-section-toggle').click();
+    expect(week.classList.contains('collapsed')).toBe(false);
+  });
+
+  test('no-deadline readlist items appear in the Backlog section', () => {
+    renderToReadList([
+      backlogItem('b'),
+      toreadEntry('a', Date.now() + DAY_MS / 2),
+    ]);
+
+    expect(document.querySelectorAll('.toread-entry')).toHaveLength(2);
+    expect(document.querySelector('.toread-section--backlog .toread-entry')).not.toBeNull();
+  });
+
+  test('plain saved pages (not on the readlist) are excluded', () => {
+    renderToReadList([
+      plainSaved('plain'),
+      toreadEntry('a', Date.now() + DAY_MS / 2),
+    ]);
+
+    expect(document.querySelectorAll('.toread-entry')).toHaveLength(1);
+    expect(document.querySelector('.toread-section--backlog .toread-entry')).toBeNull();
+  });
+
+  test('within a section items are sorted by deadline ascending', () => {
+    renderToReadList([
+      toreadEntry('later', Date.now() + 6 * DAY_MS),
+      toreadEntry('sooner', Date.now() + 4 * DAY_MS),
+    ]);
+
+    const titles = [...document.querySelectorAll('.toread-entry .entry-site')].map((el) => el.textContent);
+    expect(titles).toEqual(['Title sooner', 'Title later']);
+  });
+
+  test('tab badge shows total TO READ count and becomes visible', () => {
+    renderToReadList([
+      toreadEntry('a', Date.now() + DAY_MS / 2),
+      toreadEntry('b', Date.now() + 5 * DAY_MS),
+    ]);
+
+    const badge = document.getElementById('toread-badge');
+    expect(badge.textContent).toBe('2');
+    expect(badge.classList.contains('hidden')).toBe(false);
+  });
+
+  test('tab badge is hidden only when there are no entries at all', () => {
+    renderToReadList([]);
+    expect(document.getElementById('toread-badge').classList.contains('hidden')).toBe(true);
+  });
+
+  test('tab badge counts backlog entries too', () => {
+    renderToReadList([backlogItem('b')]);
+    const badge = document.getElementById('toread-badge');
+    expect(badge.textContent).toBe('1');
+    expect(badge.classList.contains('hidden')).toBe(false);
+  });
+
+  test('tab badge ignores plain saved pages', () => {
+    renderToReadList([plainSaved('plain')]);
+    expect(document.getElementById('toread-badge').classList.contains('hidden')).toBe(true);
+  });
+
+  test('empty state is hidden when there are only Backlog entries', () => {
+    renderToReadList([backlogItem('b')]);
+
+    expect(document.getElementById('toread-empty-state').style.display).toBe('none');
+  });
+
+  test('empty state is shown when only plain saved pages exist', () => {
+    renderToReadList([plainSaved('plain')]);
+
+    expect(document.getElementById('toread-empty-state').style.display).toBe('block');
+  });
+
+  test('empty state is shown only when there are no TO READ items', () => {
+    renderToReadList([]);
+    expect(document.getElementById('toread-empty-state').style.display).toBe('block');
+
+    renderToReadList([toreadEntry('a', Date.now() + DAY_MS / 2)]);
+    expect(document.getElementById('toread-empty-state').style.display).toBe('none');
+  });
+
+  test('overdue items show a days-overdue label', () => {
+    renderToReadList([toreadEntry('a', Date.now() - 3 * DAY_MS)]);
+
+    expect(document.querySelector('.overdue-label').textContent).toMatch(/3 days overdue/);
+  });
+
+  test('non-overdue items have no overdue label', () => {
+    renderToReadList([toreadEntry('a', Date.now() + 5 * DAY_MS)]);
+
+    expect(document.querySelector('.overdue-label')).toBeNull();
+  });
+
+  test('item title links to the URL and opens in a new tab', () => {
+    renderToReadList([toreadEntry('https://github.com/foo', Date.now() + DAY_MS / 2)]);
+
+    const link = document.querySelector('.toread-entry a');
+    expect(link.getAttribute('href')).toBe('https://github.com/foo');
+    expect(link.target).toBe('_blank');
+  });
+
+  test('meta line shows site, pageType and the saved date (not the due date)', () => {
+    const readBy = new Date('2026-06-15T12:00:00').getTime();
+    const savedAt = new Date('2026-06-01T09:00:00').getTime();
+    renderToReadList([toreadEntry('a', readBy, { savedAt })]);
+
+    expect(document.querySelector('.toread-entry .entry-meta').textContent).toBe(
+      'Github · article · Jun 1, 2026',
+    );
+  });
+
+  test('rows animate in on their first render', () => {
+    renderToReadList([toreadEntry('a', Date.now() + DAY_MS / 2)]);
+
+    expect(
+      document.querySelector('.toread-entry').classList.contains('toread-entry--entering'),
+    ).toBe(true);
+  });
+
+  test('surviving rows do not replay the entry animation on re-render', () => {
+    const a = toreadEntry('a', Date.now() + DAY_MS / 2);
+    const b = toreadEntry('b', Date.now() + 5 * DAY_MS);
+    renderToReadList([a, b]);
+    renderToReadList([a]); // b removed → a re-rendered but already on screen
+
+    const row = document.querySelector('.toread-entry');
+    expect(row.classList.contains('toread-entry--entering')).toBe(false);
+  });
+
+  test('a newly added row animates in while existing rows stay static', () => {
+    const a = toreadEntry('a', Date.now() + DAY_MS / 2);
+    const b = toreadEntry('b', Date.now() + 5 * DAY_MS);
+    renderToReadList([a]);
+    renderToReadList([a, b]);
+
+    const entering = [...document.querySelectorAll('.toread-entry--entering')];
+    expect(entering).toHaveLength(1);
+    expect(entering[0].querySelector('.entry-site').textContent).toBe('Title b');
+  });
+
+  test('each deadlined item renders favicon, deadline chip, Mark read and Remove buttons', () => {
+    renderToReadList([toreadEntry('a', Date.now() + DAY_MS / 2)]);
+
+    const item = document.querySelector('.toread-entry');
+    expect(item.querySelector('.favicon-wrap img').src).toContain('github.com');
+    expect(item.querySelector('.deadline-chip')).not.toBeNull();
+    const markRead = item.querySelector('.mark-read-btn');
+    expect(markRead.textContent).toBe('✓');
+    expect(markRead.title).toBe('Mark read');
+    expect(item.querySelector('.remove-btn')).not.toBeNull();
+  });
+
+  test('chip shows "Due in N days" for week-section items', () => {
+    renderToReadList([toreadEntry('a', Date.now() + 3 * DAY_MS)]);
+    const chip = document.querySelector('.deadline-chip');
+    expect(chip).not.toBeNull();
+    expect(chip.textContent).toMatch(/Due in 3 days/);
+  });
+
+  test('chip shows "Snooze" for past-due items', () => {
+    renderToReadList([toreadEntry('a', Date.now() - 2 * DAY_MS)]);
+    const chip = document.querySelector('.deadline-chip');
+    expect(chip).not.toBeNull();
+    expect(chip.textContent).toBe('Snooze');
+  });
+
+  test('chip is hidden for month/later sections', () => {
+    renderToReadList([toreadEntry('a', Date.now() + 15 * DAY_MS)]);
+    expect(document.querySelector('.deadline-chip')).toBeNull();
+  });
+
+  test('backlog items have no deadline chip but do have a mark-read button', () => {
+    renderToReadList([backlogItem('b')]);
+    const item = document.querySelector('.toread-entry');
+    expect(item.querySelector('.deadline-chip')).toBeNull();
+    expect(item.querySelector('.mark-read-btn')).not.toBeNull();
+    expect(item.querySelector('.remove-btn')).not.toBeNull();
+  });
+
+  test('backlog action buttons are ordered add-deadline, mark-read, remove', () => {
+    renderToReadList([backlogItem('b')]);
+    const actions = [...document.querySelector('.toread-actions').children].map((el) => el.className);
+    expect(actions).toEqual(['add-deadline-btn', 'mark-read-btn', 'remove-btn']);
+  });
+
+  test('non-backlog items have no add-deadline button', () => {
+    renderToReadList([toreadEntry('a', Date.now() + 3 * DAY_MS)]);
+    expect(document.querySelector('.add-deadline-btn')).toBeNull();
+  });
+});
+
+// ─── rolling days picker ──────────────────────────────────────────────────────
+
+describe('rolling days picker', () => {
+  const entry = toreadEntry('https://github.com/foo', Date.now() + DAY_MS / 2);
+
+  beforeEach(async () => {
+    document.body.innerHTML = OPTIONS_DOM;
+    chrome.storage.sync.get.mockResolvedValue({ blockedSites: [], savedPages: [entry] });
+    jest.resetModules();
+    require('../options');
+    await flushPromises();
+  });
+
+  test('clicking the chip opens a roller with the expected options', () => {
+    document.querySelector('.deadline-chip').click();
+
+    const options = [...document.querySelectorAll('.deadline-roller-option')].map((o) => o.textContent);
+    expect(options).toEqual(['+1 day', '+3 days', '+7 days', '+30 days', 'Remove deadline']);
+  });
+
+  test('the roller gets the open class so it animates in', () => {
+    document.querySelector('.deadline-chip').click();
+    expect(document.querySelector('.deadline-roller').classList.contains('deadline-roller--open')).toBe(true);
+  });
+
+  test('closing removes the open class to animate out before removal', () => {
+    document.querySelector('.deadline-chip').click();
+    const roller = document.querySelector('.deadline-roller');
+    document.querySelector('.deadline-chip').click(); // toggle closed
+    expect(roller.classList.contains('deadline-roller--open')).toBe(false);
+  });
+
+
+  test('selecting "+7 days" sets readBy to 7 days from now', async () => {
+    document.querySelector('.deadline-chip').click();
+    [...document.querySelectorAll('.deadline-roller-option')]
+      .find((o) => o.textContent === '+7 days').click();
+    await flushPromises();
+
+    const saved = chrome.storage.sync.set.mock.calls[0][0].savedPages[0];
+    expect(saved.readBy).toBeGreaterThan(Date.now() + 6.9 * DAY_MS);
+    expect(saved.readBy).toBeLessThanOrEqual(Date.now() + 7 * DAY_MS);
+  });
+
+  test('selecting "+7 days" closes the roller and re-renders the chip', async () => {
+    document.querySelector('.deadline-chip').click();
+    [...document.querySelectorAll('.deadline-roller-option')]
+      .find((o) => o.textContent === '+7 days').click();
+    await flushPromises();
+    await waitRollerExit();
+
+    expect(document.querySelector('.deadline-roller')).toBeNull();
+    expect(document.querySelector('.deadline-chip')).not.toBeNull();
+  });
+
+  test('"Remove deadline" clears readBy and re-renders', async () => {
+    document.querySelector('.deadline-chip').click();
+    document.querySelector('.deadline-roller-option--remove').click();
+    await flushPromises();
+    await waitRollerExit();
+
+    const saved = chrome.storage.sync.set.mock.calls[0][0].savedPages[0];
+    expect(saved).not.toHaveProperty('readBy');
+    expect(document.querySelector('.deadline-roller')).toBeNull();
+  });
+
+  test('tapping the chip again dismisses the picker without writing to storage', async () => {
+    document.querySelector('.deadline-chip').click();
+    expect(document.querySelector('.deadline-roller')).not.toBeNull();
+    document.querySelector('.deadline-chip').click();
+    await waitRollerExit();
+    expect(document.querySelector('.deadline-roller')).toBeNull();
+    expect(chrome.storage.sync.set).not.toHaveBeenCalled();
+  });
+
+  test('opening a second roller closes the first', () => {
+    const entries2 = [
+      toreadEntry('u1', Date.now() + DAY_MS / 2),
+      toreadEntry('u2', Date.now() + 2 * DAY_MS),
+    ];
+    document.body.innerHTML = OPTIONS_DOM;
+    chrome.storage.sync.get.mockResolvedValue({ blockedSites: [], savedPages: entries2 });
+    jest.resetModules();
+    require('../options');
+    return flushPromises().then(() => {
+      const chips = document.querySelectorAll('.deadline-chip');
+      chips[0].click();
+      expect(document.querySelectorAll('.deadline-roller')).toHaveLength(1);
+      chips[1].click();
+      expect(document.querySelectorAll('.deadline-roller')).toHaveLength(1);
+    });
+  });
+});
+
+// ─── add-deadline picker on Backlog rows ──────────────────────────────────────
+
+describe('Backlog add-deadline picker', () => {
+  const backlogEntry = backlogItem('https://x.com/foo');
+
+  beforeEach(async () => {
+    document.body.innerHTML = OPTIONS_DOM;
+    chrome.storage.sync.get.mockResolvedValue({ blockedSites: [], savedPages: [backlogEntry] });
+    jest.resetModules();
+    require('../options');
+    await flushPromises();
+  });
+
+  test('clicking the clock button opens the add-deadline options (no "No deadline")', () => {
+    document.querySelector('.add-deadline-btn').click();
+
+    const options = [...document.querySelectorAll('.deadline-roller-option')].map((o) => o.textContent);
+    expect(options).toEqual(['Tomorrow', '3 days', '7 days', '30 days', '3 months']);
+  });
+
+  test('selecting an option sets readBy and writes it to storage', async () => {
+    document.querySelector('.add-deadline-btn').click();
+    [...document.querySelectorAll('.deadline-roller-option')]
+      .find((o) => o.textContent === '7 days').click();
+    await flushPromises();
+
+    const saved = chrome.storage.sync.set.mock.calls[0][0].savedPages[0];
+    expect(saved.readBy).toBeGreaterThan(Date.now() + 6.9 * DAY_MS);
+    expect(saved.readBy).toBeLessThanOrEqual(Date.now() + 7 * DAY_MS);
+  });
+
+  test('tapping the clock button again dismisses the picker', async () => {
+    const btn = document.querySelector('.add-deadline-btn');
+    btn.click();
+    await new Promise((r) => setTimeout(r, 0)); // let the outside-click handler attach
+    expect(document.querySelector('.deadline-roller')).not.toBeNull();
+
+    // The second tap lands on the inner SVG icon, as it does in the browser
+    btn.querySelector('svg').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await waitRollerExit();
+    expect(document.querySelector('.deadline-roller')).toBeNull();
+  });
+
+  test('after adding a deadline the row leaves Backlog for its bucket', async () => {
+    document.querySelector('.add-deadline-btn').click();
+    [...document.querySelectorAll('.deadline-roller-option')]
+      .find((o) => o.textContent === '3 days').click();
+    await flushPromises();
+
+    expect(document.querySelector('.toread-section--backlog .toread-entry')).toBeNull();
+    expect(document.querySelector('.toread-section--week .toread-entry')).not.toBeNull();
+  });
+
+  test('marking a backlog item read takes it off the readlist but keeps it Saved', async () => {
+    const waitForRowExit = () => new Promise((r) => setTimeout(r, 350));
+    document.querySelector('.toread-section--backlog .mark-read-btn').click();
+    await waitForRowExit();
+    await flushPromises();
+
+    const saved = chrome.storage.sync.set.mock.calls[0][0].savedPages;
+    expect(saved).toHaveLength(1);
+    expect(saved[0]).not.toHaveProperty('onReadlist');
+    expect(document.querySelector('.toread-section--backlog .toread-entry')).toBeNull();
+    expect(document.querySelectorAll('.saved-entry')).toHaveLength(1);
+  });
+
+  test('removing a backlog item with the setting off keeps it Saved', async () => {
+    const waitForRowExit = () => new Promise((r) => setTimeout(r, 350));
+    document.querySelector('.toread-section--backlog .remove-btn').click();
+    await waitForRowExit();
+    await flushPromises();
+
+    const saved = chrome.storage.sync.set.mock.calls[0][0].savedPages;
+    expect(saved).toHaveLength(1);
+    expect(saved[0]).not.toHaveProperty('onReadlist');
+    expect(document.querySelector('.toread-section--backlog .toread-entry')).toBeNull();
+    expect(document.querySelectorAll('.saved-entry')).toHaveLength(1);
+  });
+});
+
+// ─── Mark read & Remove on TO READ tab ───────────────────────────────────────
+
+describe('TO READ Mark read and Remove', () => {
+  const entry = toreadEntry('https://github.com/foo', Date.now() + DAY_MS / 2);
+
+  // The row-exit animation (300 ms jsdom fallback) runs before storage updates
+  const waitForRowExit = () => new Promise((r) => setTimeout(r, 350));
+
+  beforeEach(async () => {
+    document.body.innerHTML = OPTIONS_DOM;
+    chrome.storage.sync.get.mockResolvedValue({ blockedSites: [], savedPages: [entry] });
+    jest.resetModules();
+    require('../options');
+    await flushPromises();
+  });
+
+  test('Mark read tags the leaving row for the exit animation', () => {
+    const row = document.querySelector('.toread-entry');
+    document.querySelector('.mark-read-btn').click();
+
+    expect(row.classList.contains('toread-entry--leaving')).toBe(true);
+    expect(chrome.storage.sync.set).not.toHaveBeenCalled();
+  });
+
+  test('Mark read removes readBy from storage but keeps the entry', async () => {
+    document.querySelector('.mark-read-btn').click();
+    await waitForRowExit();
+    await flushPromises();
+
+    const saved = chrome.storage.sync.set.mock.calls[0][0].savedPages;
+    expect(saved).toHaveLength(1);
+    expect(saved[0].url).toBe(entry.url);
+    expect(saved[0]).not.toHaveProperty('readBy');
+  });
+
+  test('Mark read removes the item from the readlist but keeps it in Saved', async () => {
+    document.querySelector('.mark-read-btn').click();
+    await waitForRowExit();
+    await flushPromises();
+
+    expect(document.querySelectorAll('.toread-entry')).toHaveLength(0);
+    expect(document.querySelectorAll('.saved-entry')).toHaveLength(1);
+  });
+
+  test('× takes the page off the readlist but keeps it in storage by default', async () => {
+    document.querySelector('.toread-entry .remove-btn').click();
+    await waitForRowExit();
+    await flushPromises();
+
+    const saved = chrome.storage.sync.set.mock.calls[0][0].savedPages;
+    expect(saved).toHaveLength(1);
+    expect(saved[0]).not.toHaveProperty('readBy');
+    expect(saved[0]).not.toHaveProperty('onReadlist');
+  });
+
+  test('× clears the item from the readlist but keeps it in Saved by default', async () => {
+    document.querySelector('.toread-entry .remove-btn').click();
+    await waitForRowExit();
+    await flushPromises();
+
+    expect(document.querySelectorAll('.toread-entry')).toHaveLength(0);
+    expect(document.querySelectorAll('.saved-entry')).toHaveLength(1);
+  });
+});
+
+// ─── Mark read — surgical removal, no full re-render (flash fix) ────────────
+
+describe('Mark read removes only the affected row', () => {
+  // Three entries in the same 7-days bucket so the section survives removal
+  const e1 = toreadEntry('u1', Date.now() + 4 * DAY_MS);
+  const e2 = toreadEntry('u2', Date.now() + 5 * DAY_MS);
+  const e3 = toreadEntry('u3', Date.now() + 6 * DAY_MS);
+
+  const waitForRowExit = () => new Promise((r) => setTimeout(r, 350));
+
+  beforeEach(async () => {
+    document.body.innerHTML = OPTIONS_DOM;
+    chrome.storage.sync.get.mockResolvedValue({ blockedSites: [], savedPages: [e1, e2, e3] });
+    jest.resetModules();
+    require('../options');
+    await flushPromises();
+  });
+
+  test('sibling rows in the source section keep their exact DOM nodes (no rebuild)', async () => {
+    const weekBefore = [...document.querySelectorAll('.toread-section--week .toread-entry')];
+    weekBefore[1].querySelector('.mark-read-btn').click(); // middle row
+    await waitForRowExit();
+    await flushPromises();
+
+    const weekAfter = [...document.querySelectorAll('.toread-section--week .toread-entry')];
+    expect(weekAfter).toHaveLength(2);
+    expect(weekAfter[0]).toBe(weekBefore[0]);
+    expect(weekAfter[1]).toBe(weekBefore[2]);
+    // The marked-read row leaves the readlist entirely (no Backlog relocation)
+    expect(document.querySelectorAll('.toread-section--backlog .toread-entry')).toHaveLength(0);
+  });
+
+  test('section count pill and badge update in place', async () => {
+    document.querySelectorAll('.toread-section--week .mark-read-btn')[1].click();
+    await waitForRowExit();
+    await flushPromises();
+
+    expect(document.querySelector('.toread-section--week .count').textContent).toBe('2');
+    // Badge counts the two remaining readlist items
+    expect(document.getElementById('toread-badge').textContent).toBe('2');
+  });
+
+  test("the page's own storage echo does not rebuild the list", async () => {
+    const rowsBefore = [...document.querySelectorAll('.toread-entry')];
+    rowsBefore[1].querySelector('.mark-read-btn').click();
+    await waitForRowExit();
+    await flushPromises();
+
+    // Simulate chrome.storage.onChanged firing for our own write
+    const written = chrome.storage.sync.set.mock.calls[0][0].savedPages;
+    const listener = chrome.storage.onChanged.addListener.mock.calls[0][0];
+    listener({ savedPages: { newValue: written } }, 'sync');
+
+    const rowsAfter = [...document.querySelectorAll('.toread-entry')];
+    expect(rowsAfter[0]).toBe(rowsBefore[0]);
+    expect(rowsAfter[1]).toBe(rowsBefore[2]);
+  });
+
+  test('an external storage change still re-renders the list', async () => {
+    const listener = chrome.storage.onChanged.addListener.mock.calls[0][0];
+    listener({ savedPages: { newValue: [e1] } }, 'sync');
+
+    expect(document.querySelectorAll('.toread-entry')).toHaveLength(1);
+  });
+
+  test('clearing the last readlist item empties the tab', async () => {
+    document.body.innerHTML = OPTIONS_DOM;
+    chrome.storage.sync.get.mockResolvedValue({ blockedSites: [], savedPages: [e1] });
+    jest.resetModules();
+    require('../options');
+    await flushPromises();
+
+    document.querySelector('.toread-section--week .mark-read-btn').click();
+    await waitForRowExit();
+    await flushPromises();
+
+    // The page left the readlist (kept in Saved), so the tab is now empty
+    expect(document.querySelectorAll('.toread-section')).toHaveLength(0);
+    expect(document.getElementById('toread-empty-state').style.display).toBe('block');
+    expect(document.getElementById('toread-badge').classList.contains('hidden')).toBe(true);
+    expect(document.querySelectorAll('.saved-entry')).toHaveLength(1);
+  });
+});
+
+// ─── unsave on readlist removal ──────────────────────────────────────────────
+
+describe('unsave on readlist removal setting', () => {
+  const entry = toreadEntry('https://github.com/foo', Date.now() + DAY_MS / 2);
+  const waitForRowExit = () => new Promise((r) => setTimeout(r, 350));
+
+  async function loadOptions({ unsaveOnReadlistRemove, savedPages = [entry] } = {}) {
+    document.body.innerHTML = OPTIONS_DOM;
+    chrome.storage.sync.get.mockResolvedValue({ blockedSites: [], savedPages, unsaveOnReadlistRemove });
+    jest.resetModules();
+    require('../options');
+    await flushPromises();
+  }
+
+  test('toggle is unchecked by default', async () => {
+    await loadOptions();
+    expect(document.getElementById('unsave-on-remove-toggle').checked).toBe(false);
+  });
+
+  test('toggle reflects a stored true value', async () => {
+    await loadOptions({ unsaveOnReadlistRemove: true });
+    expect(document.getElementById('unsave-on-remove-toggle').checked).toBe(true);
+  });
+
+  test('toggling on persists unsaveOnReadlistRemove: true', async () => {
+    await loadOptions();
+
+    const toggle = document.getElementById('unsave-on-remove-toggle');
+    toggle.checked = true;
+    toggle.dispatchEvent(new Event('change'));
+
+    expect(chrome.storage.sync.set).toHaveBeenCalledWith({ unsaveOnReadlistRemove: true });
+  });
+
+  test('× deletes the entry entirely when the setting is on', async () => {
+    await loadOptions({ unsaveOnReadlistRemove: true });
+
+    document.querySelector('.toread-entry .remove-btn').click();
+    await waitForRowExit();
+    await flushPromises();
+
+    expect(chrome.storage.sync.set).toHaveBeenCalledWith({ savedPages: [] });
+    expect(document.querySelectorAll('.toread-entry')).toHaveLength(0);
+    expect(document.querySelectorAll('.saved-entry')).toHaveLength(0);
+  });
+
+  test('× only takes the page off the readlist when the setting is off', async () => {
+    await loadOptions({ unsaveOnReadlistRemove: false });
+
+    document.querySelector('.toread-entry .remove-btn').click();
+    await waitForRowExit();
+    await flushPromises();
+
+    const saved = chrome.storage.sync.set.mock.calls[0][0].savedPages;
+    expect(saved).toHaveLength(1);
+    expect(saved[0]).not.toHaveProperty('readBy');
+    expect(saved[0]).not.toHaveProperty('onReadlist');
+    expect(document.querySelectorAll('.toread-entry')).toHaveLength(0);
+    expect(document.querySelectorAll('.saved-entry')).toHaveLength(1);
+  });
+
+  test('× on a Backlog item keeps it Saved when the setting is off', async () => {
+    await loadOptions({ unsaveOnReadlistRemove: false, savedPages: [backlogItem('https://x.com/foo')] });
+
+    document.querySelector('.toread-section--backlog .remove-btn').click();
+    await waitForRowExit();
+    await flushPromises();
+
+    const saved = chrome.storage.sync.set.mock.calls[0][0].savedPages;
+    expect(saved).toHaveLength(1);
+    expect(saved[0]).not.toHaveProperty('onReadlist');
+    expect(document.querySelectorAll('.toread-entry')).toHaveLength(0);
+    expect(document.querySelectorAll('.saved-entry')).toHaveLength(1);
+  });
+
+  test('× on a Backlog item unsaves it when the setting is on', async () => {
+    await loadOptions({ unsaveOnReadlistRemove: true, savedPages: [backlogItem('https://x.com/foo')] });
+
+    document.querySelector('.toread-section--backlog .remove-btn').click();
+    await waitForRowExit();
+    await flushPromises();
+
+    expect(chrome.storage.sync.set).toHaveBeenCalledWith({ savedPages: [] });
+    expect(document.querySelectorAll('.saved-entry')).toHaveLength(0);
+  });
+
+  test('Mark read keeps the page in Saved even when the setting is on', async () => {
+    await loadOptions({ unsaveOnReadlistRemove: true });
+
+    document.querySelector('.mark-read-btn').click();
+    await waitForRowExit();
+    await flushPromises();
+
+    const saved = chrome.storage.sync.set.mock.calls[0][0].savedPages;
+    expect(saved).toHaveLength(1);
+    expect(saved[0]).not.toHaveProperty('readBy');
+    expect(document.querySelectorAll('.saved-entry')).toHaveLength(1);
+  });
+});
+
+// ─── Open List ───────────────────────────────────────────────────────────────
+
+describe('Open List', () => {
+  // 8 TO READ entries with ascending deadlines: u1 overdue, the rest spread out
+  const entries = [
+    toreadEntry('u1', Date.now() - 2 * DAY_MS),
+    ...[1, 2, 4, 8, 12, 20, 40].map((d, i) => toreadEntry(`u${i + 2}`, Date.now() + d * DAY_MS)),
+    { url: 'plain', site: 'x.com', pageType: 'article', savedAt: 1 },
+  ];
+
+  beforeEach(async () => {
+    document.body.innerHTML = OPTIONS_DOM;
+    chrome.storage.sync.get.mockResolvedValue({ blockedSites: [], savedPages: entries });
+    jest.resetModules();
+    require('../options');
+    await flushPromises();
+  });
+
+  test('Open List area is visible when TO READ items exist', () => {
+    expect(document.getElementById('open-list-area').classList.contains('hidden')).toBe(false);
+  });
+
+  test('clicking Open List lists all TO READ items with the imminent set pre-checked', () => {
+    document.getElementById('open-list-btn').click();
+
+    const checkboxes = [...document.querySelectorAll('#open-list-picker input[type="checkbox"]')];
+    expect(checkboxes).toHaveLength(8);
+    const checked = checkboxes.filter((c) => c.checked).map((c) => c.value);
+    expect(checked).toEqual(['u1', 'u2', 'u3', 'u4', 'u5', 'u6']);
+  });
+
+  test('confirm button label shows the selected count and updates on change', () => {
+    document.getElementById('open-list-btn').click();
+
+    const confirmBtn = document.getElementById('open-selected-btn');
+    expect(confirmBtn.textContent).toBe('Open Selected (6)');
+
+    const firstChecked = document.querySelector('#open-list-picker input:checked');
+    firstChecked.checked = false;
+    firstChecked.dispatchEvent(new Event('change'));
+
+    expect(confirmBtn.textContent).toBe('Open Selected (5)');
+  });
+
+  test('confirm opens a new window with the selected URLs and closes the picker', async () => {
+    document.getElementById('open-list-btn').click();
+    document.getElementById('open-selected-btn').click();
+    await flushPromises();
+
+    expect(chrome.windows.create).toHaveBeenCalledWith({
+      url: ['u1', 'u2', 'u3', 'u4', 'u5', 'u6'],
+    });
+    expect(document.getElementById('open-list-picker').classList.contains('hidden')).toBe(true);
+    expect(chrome.storage.sync.set).not.toHaveBeenCalled();
+  });
+
+  test('Cancel closes the picker without opening a window', () => {
+    document.getElementById('open-list-btn').click();
+    document.querySelector('.open-list-cancel').click();
+
+    expect(chrome.windows.create).not.toHaveBeenCalled();
+    expect(document.getElementById('open-list-picker').classList.contains('hidden')).toBe(true);
+  });
+
+  test('Open List area is hidden when no TO READ items exist', async () => {
+    document.body.innerHTML = OPTIONS_DOM;
+    chrome.storage.sync.get.mockResolvedValue({ blockedSites: [], savedPages: [] });
+    jest.resetModules();
+    require('../options');
+    await flushPromises();
+
+    expect(document.getElementById('open-list-area').classList.contains('hidden')).toBe(true);
   });
 });

@@ -128,6 +128,12 @@ input[type="text"]:focus {
   color: #333;
 }
 
+/* The Open List button is short and left-aligned, so the Settings card needs
+   extra separation to match the breathing room on the Blocked tab. */
+#tab-toread .settings-section {
+  margin-top: 16px;
+}
+
 .toggle-row {
   display: flex;
   align-items: center;
@@ -308,6 +314,26 @@ input[type="text"]:focus {
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.14);
 }
 
+.seg-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: 1px;
+  background: #3182ce;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 999px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  margin-left: 2px;
+}
+
+.seg-badge.hidden {
+  display: none;
+}
+
 /* Saved tab panel layout */
 .tab-panel {
   display: flex;
@@ -456,7 +482,359 @@ select {
   margin-top: 3px;
 }
 
+/* TO READ tab */
+#toread-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.toread-section-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #333;
+}
+
+.toread-section--pastdue .toread-section-header {
+  color: #c05621;
+}
+
+/* An empty section can't expand — neutralise the toggle affordance and mute
+   its title so attention stays on sections that actually have articles. */
+.toread-section--empty .list-section-toggle {
+  cursor: default;
+}
+
+.toread-section--empty .toread-section-header {
+  color: #aaa;
+}
+
+.toread-section--empty .count {
+  opacity: 0.5;
+}
+
+.toread-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.toread-entry {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 0;
+  border-bottom: 1px solid #f2f2f2;
+}
+
+/* Only rows that are new since the previous render animate in */
+.toread-entry--entering {
+  animation: fadeIn 0.15s ease;
+}
+
+.toread-entry:last-child {
+  border-bottom: none;
+}
+
+.toread-entry--leaving {
+  height: 0 !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  border-bottom-width: 0 !important;
+  opacity: 0;
+  transform: translateX(-10px);
+  overflow: hidden;
+  transition: height 0.2s ease-in-out, padding 0.2s ease-in-out,
+    border-bottom-width 0.2s ease-in-out, opacity 0.15s ease-in-out,
+    transform 0.2s ease-in-out;
+}
+
+.toread-section--pastdue .toread-entry {
+  background: #fffaf5;
+}
+
+.overdue-label {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #c05621;
+  background: #feebc8;
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+
+.toread-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.deadline-chip {
+  padding: 5px 10px;
+  border: 1px solid #dbe4f0;
+  border-radius: 999px;
+  background: #f4f8fd;
+  color: #3182ce;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+
+.deadline-chip:hover {
+  background: #e6f0fa;
+}
+
+.deadline-roller {
+  position: absolute;
+  z-index: 200;
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(0, 0, 0, 0.09);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12), 0 2px 6px rgba(0, 0, 0, 0.07);
+  padding: 5px 0;
+  min-width: 148px;
+  overflow: hidden;
+  opacity: 0;
+  transform: translateY(-4px) scale(0.97);
+  transform-origin: top left;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.deadline-roller--open {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.deadline-roller-option {
+  display: block;
+  width: 100%;
+  padding: 8px 14px;
+  border: none;
+  background: none;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: #1a1a1a;
+  cursor: pointer;
+  text-align: left;
+  white-space: nowrap;
+  transition: background 0.1s;
+}
+
+.deadline-roller-option:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.deadline-roller-option--remove {
+  color: #c53030;
+}
+
+/* Green check icon button, same footprint as the × remove button */
+.mark-read-btn {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 6px;
+  background: #e6fbf0;
+  color: #2f855a;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.mark-read-btn:hover {
+  background: #c6f6d5;
+}
+
+/* Clock icon button on Backlog rows — adds a deadline; same footprint as ✓/× */
+.add-deadline-btn {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 6px;
+  background: #f4f8fd;
+  color: #3182ce;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.add-deadline-btn:hover {
+  background: #e6f0fa;
+}
+
+.toread-entry .remove-btn {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  margin-left: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 17px;
+  line-height: 1;
+  background: #f5f5f5;
+  color: #bbb;
+  border-radius: 6px;
+}
+
+.toread-entry .remove-btn:hover {
+  background: #fff0f0;
+  color: #c53030;
+}
+
+/* Open List */
+.open-list-area {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.open-list-area.hidden {
+  display: none;
+}
+
+.btn-open-list {
+  background: #3182ce;
+  color: #fff;
+  align-self: flex-start;
+}
+
+.btn-open-list:hover {
+  background: #2b6cb0;
+}
+
+.open-list-picker {
+  background: #fff;
+  border-radius: 10px;
+  padding: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.07);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.open-list-picker.hidden {
+  display: none;
+}
+
+.open-list-choices {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.open-list-choices label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: #222;
+  cursor: pointer;
+}
+
+.open-list-confirm-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.open-list-cancel {
+  border: none;
+  background: none;
+  color: #999;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.open-list-cancel:hover {
+  color: #555;
+}
+
 /* Remove button override for saved entries */
+/* Saved-row action buttons — match the Readlist tab's tight spacing */
+.saved-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* Saved-tab readlist toggle (list + plus / list + check) */
+.readlist-toggle {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 6px;
+  background: #f5f5f5;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.readlist-toggle:hover {
+  background: #eef2f7;
+}
+
+.readlist-toggle.is-on {
+  background: #e9f7ef;
+}
+
+.readlist-toggle.is-on:hover {
+  background: #d7f0e2;
+}
+
+/* Icon crossfade when toggling add ↔ added */
+.readlist-toggle-ghost {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: readlistToggleOut 0.2s ease forwards;
+}
+
+.readlist-toggle--swapping > :not(.readlist-toggle-ghost) {
+  animation: readlistToggleIn 0.2s ease;
+}
+
+@keyframes readlistToggleOut {
+  from { opacity: 1; transform: scale(1); }
+  to   { opacity: 0; transform: scale(0.6); }
+}
+
+@keyframes readlistToggleIn {
+  from { opacity: 0; transform: scale(0.6); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
 .saved-entry .remove-btn {
   width: 28px;
   height: 28px;

@@ -28,6 +28,9 @@ beforeEach(() => {
     tabs: {
       query: jest.fn(),
     },
+    windows: {
+      create: jest.fn().mockResolvedValue({}),
+    },
     scripting: {
       executeScript: jest.fn().mockResolvedValue([{ result: "article" }]),
     },

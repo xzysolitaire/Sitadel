@@ -17,8 +17,27 @@
     </header>
 
     <div class="segmented">
+      <button class="seg-btn" data-tab="toread">Readlist <span id="toread-badge" class="seg-badge hidden">0</span></button>
       <button class="seg-btn seg-btn--active" data-tab="saved">Saved</button>
       <button class="seg-btn" data-tab="blocked">Blocked</button>
+    </div>
+
+    <div id="tab-toread" class="tab-panel hidden">
+      <div id="toread-sections"></div>
+      <div id="toread-empty-state" class="empty-state">No pages with a read-by deadline yet.</div>
+      <div id="open-list-area" class="open-list-area hidden">
+        <div id="open-list-picker" class="open-list-picker hidden"></div>
+        <button id="open-list-btn" class="btn btn-open-list">Open List</button>
+      </div>
+
+      <section class="settings-section">
+        <h2>Settings</h2>
+        <label class="toggle-row">
+          <input type="checkbox" id="unsave-on-remove-toggle" />
+          <span class="toggle-label">Unsave pages as well when removed from read list</span>
+        </label>
+        <p class="toggle-hint">When off, the × button only takes the page off the read list — it stays in your Saved list.</p>
+      </section>
     </div>
 
     <div id="tab-saved" class="tab-panel">
@@ -104,6 +123,7 @@
       </section>
     </div>
   </div>
+  <script src="readlist-utils.js"></script>
   <script src="options.js"></script>
 </body>
 </html>
