@@ -774,6 +774,34 @@ select {
 }
 
 /* Remove button override for saved entries */
+/* Saved-tab readlist toggle (list + plus / list + check) */
+.readlist-toggle {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 6px;
+  background: #f5f5f5;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.readlist-toggle:hover {
+  background: #eef2f7;
+}
+
+.readlist-toggle.is-on {
+  background: #e9f7ef;
+}
+
+.readlist-toggle.is-on:hover {
+  background: #d7f0e2;
+}
+
 .saved-entry .remove-btn {
   width: 28px;
   height: 28px;

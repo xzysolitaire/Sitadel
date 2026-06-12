@@ -486,6 +486,70 @@ describe('renderSavedList — entry structure', () => {
   });
 });
 
+// ─── Saved tab — readlist toggle ─────────────────────────────────────────────
+
+describe('Saved tab readlist toggle', () => {
+  async function loadOptions(savedPages) {
+    document.body.innerHTML = OPTIONS_DOM;
+    chrome.storage.sync.get.mockResolvedValue({ blockedSites: [], savedPages });
+    jest.resetModules();
+    require('../options');
+    await flushPromises();
+  }
+
+  const savedToggle = () => document.querySelector('.saved-entry .readlist-toggle');
+
+  test('a plain saved page shows the add (not-on-list) toggle', async () => {
+    await loadOptions([plainSaved('https://x.com/a')]);
+    const btn = savedToggle();
+    expect(btn.classList.contains('is-on')).toBe(false);
+    expect(btn.getAttribute('aria-pressed')).toBe('false');
+  });
+
+  test('a readlist page (backlog or deadlined) shows the on-list toggle', async () => {
+    await loadOptions([backlogItem('https://x.com/b'), toreadEntry('https://x.com/c', Date.now() + DAY_MS)]);
+    const toggles = document.querySelectorAll('.saved-entry .readlist-toggle');
+    expect(toggles).toHaveLength(2);
+    expect([...toggles].every((t) => t.classList.contains('is-on'))).toBe(true);
+  });
+
+  test('tapping add puts the page on the readlist (Backlog) and flips the button', async () => {
+    await loadOptions([plainSaved('https://x.com/a')]);
+    savedToggle().click();
+    await flushPromises();
+
+    const saved = chrome.storage.sync.set.mock.calls[0][0].savedPages[0];
+    expect(saved.onReadlist).toBe(true);
+    expect(saved).not.toHaveProperty('readBy');
+    expect(savedToggle().classList.contains('is-on')).toBe(true);
+    // synced into the (hidden) Readlist tab's Backlog section
+    expect(document.querySelector('.toread-section--backlog .toread-entry')).not.toBeNull();
+  });
+
+  test('tapping on-list removes it from the readlist but keeps it Saved', async () => {
+    await loadOptions([backlogItem('https://x.com/b')]);
+    savedToggle().click();
+    await flushPromises();
+
+    const saved = chrome.storage.sync.set.mock.calls[0][0].savedPages;
+    expect(saved).toHaveLength(1);
+    expect(saved[0]).not.toHaveProperty('onReadlist');
+    expect(savedToggle().classList.contains('is-on')).toBe(false);
+    expect(document.querySelectorAll('.saved-entry')).toHaveLength(1);
+    expect(document.querySelectorAll('.toread-entry')).toHaveLength(0);
+  });
+
+  test('toggling off a deadlined page also clears its deadline', async () => {
+    await loadOptions([toreadEntry('https://x.com/c', Date.now() + DAY_MS)]);
+    savedToggle().click();
+    await flushPromises();
+
+    const saved = chrome.storage.sync.set.mock.calls[0][0].savedPages[0];
+    expect(saved).not.toHaveProperty('readBy');
+    expect(saved).not.toHaveProperty('onReadlist');
+  });
+});
+
 // ─── renderSavedList — sort (additional) ─────────────────────────────────────
 
 describe('renderSavedList — sort (additional)', () => {

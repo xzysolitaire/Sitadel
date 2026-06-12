@@ -108,6 +108,46 @@ function renderList(entries) {
   }
 }
 
+// Saved-tab readlist toggle icons (list glyph + state element).
+// Add = neutral list + blue plus; On = neutral list + green check.
+const READLIST_ADD_SVG = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="3" y1="6" x2="16" y2="6" stroke="#475569"/><line x1="3" y1="12" x2="16" y2="12" stroke="#475569"/><line x1="3" y1="18" x2="11" y2="18" stroke="#475569"/><line x1="18" y1="15" x2="18" y2="21" stroke="#3182ce"/><line x1="15" y1="18" x2="21" y2="18" stroke="#3182ce"/></svg>`;
+const READLIST_ON_SVG = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="3" y1="6" x2="16" y2="6" stroke="#475569"/><line x1="3" y1="12" x2="16" y2="12" stroke="#475569"/><line x1="3" y1="18" x2="11" y2="18" stroke="#475569"/><polyline points="14.5 18 16.5 20 20.5 15.5" stroke="#2f855a"/></svg>`;
+
+function applyReadlistToggle(btn, on) {
+  btn.classList.toggle("is-on", on);
+  btn.title = on ? "On your readlist — tap to remove" : "Add to readlist";
+  btn.setAttribute("aria-pressed", on ? "true" : "false");
+  btn.innerHTML = on ? READLIST_ON_SVG : READLIST_ADD_SVG;
+}
+
+function buildReadlistToggle(entry) {
+  const btn = document.createElement("button");
+  btn.className = "readlist-toggle";
+  applyReadlistToggle(btn, isOnReadlist(entry));
+  btn.addEventListener("click", () => toggleReadlist(entry.url, btn));
+  return btn;
+}
+
+// Toggle a saved page's readlist membership from the Saved tab. Adding puts it
+// on the readlist with no deadline (Backlog); removing clears readBy/onReadlist
+// but keeps it Saved. The button swaps in place; the Readlist tab is re-synced.
+async function toggleReadlist(url, btn) {
+  const entry = savedEntries.find((p) => p.url === url);
+  if (!entry) return;
+  const on = isOnReadlist(entry);
+  savedEntries = savedEntries.map((p) => {
+    if (p.url !== url) return p;
+    if (on) {
+      const { readBy, onReadlist, ...rest } = p;
+      return rest;
+    }
+    return { ...p, onReadlist: true };
+  });
+  await chrome.storage.sync.set({ [SAVED_KEY]: savedEntries });
+  applyReadlistToggle(btn, !on);
+  renderToReadList(savedEntries);
+}
+
 function renderSavedList(entries) {
   const siteFilter = filterSiteSelect.value;
   const typeFilter = activeTypeFilter();
@@ -168,6 +208,8 @@ function renderSavedList(entries) {
     link.appendChild(titleEl);
     link.appendChild(meta);
 
+    const readlistBtn = buildReadlistToggle(entry);
+
     const removeBtn = document.createElement("button");
     removeBtn.className = "remove-btn";
     removeBtn.title = "Remove";
@@ -176,6 +218,7 @@ function renderSavedList(entries) {
 
     li.appendChild(faviconWrap);
     li.appendChild(link);
+    li.appendChild(readlistBtn);
     li.appendChild(removeBtn);
     savedList.insertBefore(li, savedEmptyState);
   }
@@ -696,7 +739,7 @@ async function loadSaved() {
   savedEntries = entries;
   renderSavedList(savedEntries);
   renderToReadList(savedEntries);
-  activateTab(savedEntries.some((p) => p.readBy != null) ? "toread" : "saved");
+  activateTab(savedEntries.some(isOnReadlist) ? "toread" : "saved");
 }
 
 async function load() {
