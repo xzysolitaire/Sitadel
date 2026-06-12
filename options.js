@@ -307,19 +307,22 @@ function syncSectionState(section, count) {
 function renderToReadList(entries) {
   if (!toreadSectionsEl) return;
 
-  const deadlinedCount = entries.filter((p) => p.readBy != null).length;
+  // Only pages explicitly added to the readlist appear here; plain saved
+  // pages live in the Saved tab alone.
+  const listed = entries.filter(isOnReadlist);
+  const deadlinedCount = listed.filter((p) => p.readBy != null).length;
   const previousUrls = renderedToReadUrls;
-  renderedToReadUrls = new Set(entries.map((p) => p.url));
+  renderedToReadUrls = new Set(listed.map((p) => p.url));
 
-  updateToReadChrome(deadlinedCount, entries.length);
+  updateToReadChrome(listed.length, deadlinedCount);
   toreadSectionsEl.textContent = "";
 
-  // Nothing saved at all — leave the empty state to carry the message.
-  if (entries.length === 0) return;
+  // Nothing on the readlist — leave the empty state to carry the message.
+  if (listed.length === 0) return;
 
   // Every section is always shown so the buckets stay legible even when empty.
   for (const [key, label] of TOREAD_SECTIONS) {
-    const items = entries
+    const items = listed
       .filter((p) => getDeadlineSection(p.readBy) === key)
       .sort((a, b) => key === "backlog" ? b.savedAt - a.savedAt : a.readBy - b.readBy);
 
@@ -332,13 +335,14 @@ function renderToReadList(entries) {
   }
 }
 
-// Badge and Open List track deadlined items only; empty state tracks all items
-function updateToReadChrome(deadlinedCount, totalCount) {
+// Badge and empty state track all readlist items; Open List tracks deadlined
+// ones (the reading-session picker is deadline-ordered).
+function updateToReadChrome(listedCount, deadlinedCount) {
   if (toreadBadge) {
-    toreadBadge.textContent = totalCount;
-    toreadBadge.classList.toggle("hidden", totalCount === 0);
+    toreadBadge.textContent = listedCount;
+    toreadBadge.classList.toggle("hidden", listedCount === 0);
   }
-  toreadEmptyState.style.display = totalCount === 0 ? "block" : "none";
+  toreadEmptyState.style.display = listedCount === 0 ? "block" : "none";
   if (openListArea) {
     openListArea.classList.toggle("hidden", deadlinedCount === 0);
     if (deadlinedCount === 0) closeOpenListPicker();
@@ -367,34 +371,17 @@ function removeToReadRow(url) {
     updateSectionCount(section);
   }
 
-  if (savedEntries.length === 0) toreadSectionsEl.textContent = "";
+  const listed = savedEntries.filter(isOnReadlist);
+  if (listed.length === 0) toreadSectionsEl.textContent = "";
 
-  const deadlined = savedEntries.filter((p) => p.readBy != null).length;
-  updateToReadChrome(deadlined, savedEntries.length);
-}
-
-// Insert a freshly de-deadlined row into the Backlog section in savedAt-desc
-// order, animating it in — the surgical counterpart of a move to Backlog.
-function addBacklogRow(entry) {
-  if (!toreadSectionsEl) return;
-  renderedToReadUrls.add(entry.url);
-
-  const section = toreadSectionsEl.querySelector(".toread-section--backlog");
-  if (!section) return;
-
-  const ul = section.querySelector(".toread-list");
-  const row = buildToReadItem(entry, "backlog", true);
-  const before = [...ul.querySelectorAll(".toread-entry")]
-    .find((el) => Number(el.dataset.savedAt) < entry.savedAt);
-  ul.insertBefore(row, before || null);
-  updateSectionCount(section);
+  const deadlinedCount = listed.filter((p) => p.readBy != null).length;
+  updateToReadChrome(listed.length, deadlinedCount);
 }
 
 function buildToReadItem(entry, sectionKey, isNew) {
   const li = document.createElement("li");
   li.className = isNew ? "toread-entry toread-entry--entering" : "toread-entry";
   li.dataset.url = entry.url;
-  li.dataset.savedAt = entry.savedAt;
 
   const faviconWrap = document.createElement("div");
   faviconWrap.className = "favicon-wrap";
@@ -458,34 +445,27 @@ function buildToReadItem(entry, sectionKey, isNew) {
     actions.appendChild(addDeadlineBtn);
   }
 
-  // ✓ Mark read: on a deadlined row it clears the deadline (demote to Backlog,
-  // stay saved); on a Backlog row there's no deadline to clear, so marking it
-  // seen takes the now-read page off the list entirely.
+  // ✓ Mark read: I've read it — take it off the readlist but keep it Saved.
+  // Always non-destructive, regardless of the unsave setting.
   const markReadBtn = document.createElement("button");
   markReadBtn.className = "mark-read-btn";
   markReadBtn.title = "Mark read";
   markReadBtn.textContent = "✓";
   markReadBtn.addEventListener("click", async () => {
     await animateRowOut(li);
-    if (sectionKey === "backlog") {
-      removeSavedPage(entry.url);
-    } else {
-      markPageRead(entry.url);
-    }
+    markPageRead(entry.url);
   });
   actions.appendChild(markReadBtn);
 
+  // × Remove from readlist: keeps the page Saved by default; the setting
+  // decides whether it is also unsaved.
   const removeBtn = document.createElement("button");
   removeBtn.className = "remove-btn";
   removeBtn.title = "Remove";
   removeBtn.textContent = "×";
   removeBtn.addEventListener("click", async () => {
     await animateRowOut(li);
-    if (sectionKey === "backlog") {
-      removeSavedPage(entry.url);
-    } else {
-      removeFromReadlist(entry.url);
-    }
+    removeFromReadlist(entry.url);
   });
   actions.appendChild(removeBtn);
 
@@ -588,17 +568,18 @@ function openRollingPicker(anchor, options) {
 
 async function applyRollerDays(url, days) {
   const readBy = Date.now() + days * 24 * 60 * 60 * 1000;
-  savedEntries = savedEntries.map((p) => (p.url === url ? { ...p, readBy } : p));
+  savedEntries = savedEntries.map((p) => (p.url === url ? { ...p, readBy, onReadlist: true } : p));
   await chrome.storage.sync.set({ [SAVED_KEY]: savedEntries });
   renderToReadList(savedEntries);
   renderSavedList(savedEntries);
 }
 
+// Drop the deadline but stay on the readlist (the page becomes a Backlog item).
 async function removeDeadline(url) {
   savedEntries = savedEntries.map((p) => {
     if (p.url !== url) return p;
     const { readBy, ...rest } = p;
-    return rest;
+    return { ...rest, onReadlist: true };
   });
   await chrome.storage.sync.set({ [SAVED_KEY]: savedEntries });
   renderToReadList(savedEntries);
@@ -674,29 +655,26 @@ openListBtn?.addEventListener("click", openOpenListPicker);
 async function setPageDeadline(url, option) {
   const readBy = deadlineFromOption(option);
   if (readBy == null) return;
-  savedEntries = savedEntries.map((p) => (p.url === url ? { ...p, readBy } : p));
+  savedEntries = savedEntries.map((p) => (p.url === url ? { ...p, readBy, onReadlist: true } : p));
   await chrome.storage.sync.set({ [SAVED_KEY]: savedEntries });
   renderToReadList(savedEntries);
   renderSavedList(savedEntries);
 }
 
-// Mark read always keeps the page in Saved — it just clears the deadline,
-// which moves the row out of its deadline bucket and into Backlog.
+// Mark read takes the page off the readlist (clears the deadline and the
+// onReadlist flag) but keeps it in Saved — it just leaves the readlist tab.
 async function markPageRead(url) {
-  let updatedEntry = null;
   savedEntries = savedEntries.map((p) => {
     if (p.url !== url) return p;
-    const { readBy, ...rest } = p;
-    updatedEntry = rest;
+    const { readBy, onReadlist, ...rest } = p;
     return rest;
   });
   await chrome.storage.sync.set({ [SAVED_KEY]: savedEntries });
   removeToReadRow(url);
-  if (updatedEntry) addBacklogRow(updatedEntry);
   renderSavedList(savedEntries);
 }
 
-// × on a Readlist row: take the page off the read list; the setting decides
+// × on a Readlist row: take the page off the readlist; the setting decides
 // whether it is also deleted from Saved
 async function removeFromReadlist(url) {
   if (unsaveOnReadlistRemove) {

@@ -212,16 +212,30 @@ async function handleUndo() {
 
 async function handleDeadlineOption(option) {
   closePicker();
-  if (option === "none") return; // keep the page saved without a deadline
+
+  const { [SAVED_KEY]: saved = [] } = await chrome.storage.sync.get(SAVED_KEY);
+  let updatedEntry = null;
+
+  if (option === "none") {
+    // "No deadline" still adds the page to the readlist — as a Backlog item.
+    const updated = saved.map((p) => {
+      if (p.url !== currentTab.url) return p;
+      const { readBy, ...rest } = p;
+      updatedEntry = { ...rest, onReadlist: true };
+      return updatedEntry;
+    });
+    await chrome.storage.sync.set({ [SAVED_KEY]: updated });
+    if (updatedEntry) showSaveLabel(updatedEntry, { crossfade: true });
+    setSaveState("readlist");
+    return;
+  }
 
   const readBy = deadlineFromOption(option);
   if (readBy == null) return;
 
-  const { [SAVED_KEY]: saved = [] } = await chrome.storage.sync.get(SAVED_KEY);
-  let updatedEntry = null;
   const updated = saved.map((p) => {
     if (p.url !== currentTab.url) return p;
-    updatedEntry = { ...p, readBy };
+    updatedEntry = { ...p, readBy, onReadlist: true };
     return updatedEntry;
   });
   await chrome.storage.sync.set({ [SAVED_KEY]: updated });
@@ -234,7 +248,7 @@ async function handleMarkRead() {
   let plainEntry = null;
   const updated = saved.map((p) => {
     if (p.url !== currentTab.url) return p;
-    const { readBy, ...rest } = p;
+    const { readBy, onReadlist, ...rest } = p;
     plainEntry = rest;
     return rest;
   });

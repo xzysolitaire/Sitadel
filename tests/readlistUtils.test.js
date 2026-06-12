@@ -1,5 +1,6 @@
 const {
   deadlineFromOption,
+  isOnReadlist,
   getDeadlineSection,
   computeImminentSet,
   daysOverdue,
@@ -9,6 +10,22 @@ const {
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 afterEach(() => jest.restoreAllMocks());
+
+// ─── isOnReadlist ─────────────────────────────────────────────────────────────
+
+describe('isOnReadlist', () => {
+  test('a page with a deadline is on the readlist', () => {
+    expect(isOnReadlist({ readBy: Date.now() })).toBe(true);
+  });
+
+  test('a page flagged onReadlist (no deadline) is on the readlist', () => {
+    expect(isOnReadlist({ onReadlist: true })).toBe(true);
+  });
+
+  test('a plain saved page (no deadline, no flag) is not on the readlist', () => {
+    expect(isOnReadlist({ savedAt: 1 })).toBe(false);
+  });
+});
 
 // ─── deadlineFromOption ──────────────────────────────────────────────────────
 

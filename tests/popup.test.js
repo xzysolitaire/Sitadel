@@ -428,14 +428,16 @@ describe('readlist: deadline picker', () => {
     expect(document.getElementById('deadline-picker').classList.contains('open')).toBe(false);
   });
 
-  test('No deadline closes the picker without writing and stays on Readlist', async () => {
+  test('No deadline adds the page to the readlist (Backlog) and closes the picker', async () => {
     document.getElementById('save-btn').click();
 
     chrome.storage.sync.get.mockResolvedValue({ savedPages: [entry] });
     document.querySelector('.pill[data-option="none"]').click();
     await flushPromises();
 
-    expect(chrome.storage.sync.set).not.toHaveBeenCalled();
+    const saved = chrome.storage.sync.set.mock.calls[0][0].savedPages[0];
+    expect(saved.onReadlist).toBe(true);
+    expect(saved).not.toHaveProperty('readBy');
     expect(saveLabelText()).toBe('Readlist');
     expect(document.getElementById('deadline-picker').classList.contains('open')).toBe(false);
   });

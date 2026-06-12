@@ -749,6 +749,26 @@ const toreadEntry = (url, readBy, extra = {}) => ({
   ...extra,
 });
 
+// A readlist item with no deadline (on the readlist via the onReadlist flag).
+const backlogItem = (url, extra = {}) => ({
+  url,
+  site: 'x.com',
+  pageType: 'article',
+  savedAt: 1000,
+  title: `Title ${url}`,
+  onReadlist: true,
+  ...extra,
+});
+
+// A plain saved page that was never added to the readlist.
+const plainSaved = (url, extra = {}) => ({
+  url,
+  site: 'x.com',
+  pageType: 'article',
+  savedAt: 1,
+  ...extra,
+});
+
 describe('renderToReadList', () => {
   let renderToReadList;
 
@@ -795,7 +815,7 @@ describe('renderToReadList', () => {
     renderToReadList([
       toreadEntry('a', Date.now() - 2 * DAY_MS), // pastdue
       toreadEntry('b', Date.now() + 5 * DAY_MS), // week
-      { url: 'c', site: 'x.com', pageType: 'article', savedAt: 1 }, // backlog
+      backlogItem('c'), // backlog
     ]);
 
     expect(document.querySelector('.toread-section--backlog').classList.contains('collapsed')).toBe(true);
@@ -829,14 +849,24 @@ describe('renderToReadList', () => {
     expect(week.classList.contains('collapsed')).toBe(false);
   });
 
-  test('entries without readBy appear in the Backlog section', () => {
+  test('no-deadline readlist items appear in the Backlog section', () => {
     renderToReadList([
-      { url: 'plain', site: 'github.com', pageType: 'article', savedAt: 1 },
+      backlogItem('b'),
       toreadEntry('a', Date.now() + DAY_MS / 2),
     ]);
 
     expect(document.querySelectorAll('.toread-entry')).toHaveLength(2);
-    expect(document.querySelector('.toread-section--backlog')).not.toBeNull();
+    expect(document.querySelector('.toread-section--backlog .toread-entry')).not.toBeNull();
+  });
+
+  test('plain saved pages (not on the readlist) are excluded', () => {
+    renderToReadList([
+      plainSaved('plain'),
+      toreadEntry('a', Date.now() + DAY_MS / 2),
+    ]);
+
+    expect(document.querySelectorAll('.toread-entry')).toHaveLength(1);
+    expect(document.querySelector('.toread-section--backlog .toread-entry')).toBeNull();
   });
 
   test('within a section items are sorted by deadline ascending', () => {
@@ -866,16 +896,27 @@ describe('renderToReadList', () => {
   });
 
   test('tab badge counts backlog entries too', () => {
-    renderToReadList([{ url: 'plain', site: 'x.com', pageType: 'article', savedAt: 1 }]);
+    renderToReadList([backlogItem('b')]);
     const badge = document.getElementById('toread-badge');
     expect(badge.textContent).toBe('1');
     expect(badge.classList.contains('hidden')).toBe(false);
   });
 
+  test('tab badge ignores plain saved pages', () => {
+    renderToReadList([plainSaved('plain')]);
+    expect(document.getElementById('toread-badge').classList.contains('hidden')).toBe(true);
+  });
+
   test('empty state is hidden when there are only Backlog entries', () => {
-    renderToReadList([{ url: 'plain', site: 'x.com', pageType: 'article', savedAt: 1 }]);
+    renderToReadList([backlogItem('b')]);
 
     expect(document.getElementById('toread-empty-state').style.display).toBe('none');
+  });
+
+  test('empty state is shown when only plain saved pages exist', () => {
+    renderToReadList([plainSaved('plain')]);
+
+    expect(document.getElementById('toread-empty-state').style.display).toBe('block');
   });
 
   test('empty state is shown only when there are no TO READ items', () => {
@@ -977,7 +1018,7 @@ describe('renderToReadList', () => {
   });
 
   test('backlog items have no deadline chip but do have a mark-read button', () => {
-    renderToReadList([{ url: 'b', site: 'x.com', pageType: 'article', savedAt: 1 }]);
+    renderToReadList([backlogItem('b')]);
     const item = document.querySelector('.toread-entry');
     expect(item.querySelector('.deadline-chip')).toBeNull();
     expect(item.querySelector('.mark-read-btn')).not.toBeNull();
@@ -985,7 +1026,7 @@ describe('renderToReadList', () => {
   });
 
   test('backlog action buttons are ordered add-deadline, mark-read, remove', () => {
-    renderToReadList([{ url: 'b', site: 'x.com', pageType: 'article', savedAt: 1 }]);
+    renderToReadList([backlogItem('b')]);
     const actions = [...document.querySelector('.toread-actions').children].map((el) => el.className);
     expect(actions).toEqual(['add-deadline-btn', 'mark-read-btn', 'remove-btn']);
   });
@@ -1093,7 +1134,7 @@ describe('rolling days picker', () => {
 // ─── add-deadline picker on Backlog rows ──────────────────────────────────────
 
 describe('Backlog add-deadline picker', () => {
-  const backlogEntry = { url: 'https://x.com/foo', site: 'x.com', pageType: 'article', savedAt: 1000 };
+  const backlogEntry = backlogItem('https://x.com/foo');
 
   beforeEach(async () => {
     document.body.innerHTML = OPTIONS_DOM;
@@ -1143,15 +1184,30 @@ describe('Backlog add-deadline picker', () => {
     expect(document.querySelector('.toread-section--week .toread-entry')).not.toBeNull();
   });
 
-  test('marking a backlog item read removes it from Saved', async () => {
+  test('marking a backlog item read takes it off the readlist but keeps it Saved', async () => {
     const waitForRowExit = () => new Promise((r) => setTimeout(r, 350));
     document.querySelector('.toread-section--backlog .mark-read-btn').click();
     await waitForRowExit();
     await flushPromises();
 
-    expect(chrome.storage.sync.set).toHaveBeenCalledWith({ savedPages: [] });
+    const saved = chrome.storage.sync.set.mock.calls[0][0].savedPages;
+    expect(saved).toHaveLength(1);
+    expect(saved[0]).not.toHaveProperty('onReadlist');
     expect(document.querySelector('.toread-section--backlog .toread-entry')).toBeNull();
-    expect(document.querySelectorAll('.saved-entry')).toHaveLength(0);
+    expect(document.querySelectorAll('.saved-entry')).toHaveLength(1);
+  });
+
+  test('removing a backlog item with the setting off keeps it Saved', async () => {
+    const waitForRowExit = () => new Promise((r) => setTimeout(r, 350));
+    document.querySelector('.toread-section--backlog .remove-btn').click();
+    await waitForRowExit();
+    await flushPromises();
+
+    const saved = chrome.storage.sync.set.mock.calls[0][0].savedPages;
+    expect(saved).toHaveLength(1);
+    expect(saved[0]).not.toHaveProperty('onReadlist');
+    expect(document.querySelector('.toread-section--backlog .toread-entry')).toBeNull();
+    expect(document.querySelectorAll('.saved-entry')).toHaveLength(1);
   });
 });
 
@@ -1190,17 +1246,16 @@ describe('TO READ Mark read and Remove', () => {
     expect(saved[0]).not.toHaveProperty('readBy');
   });
 
-  test('Mark read moves the item into Backlog and keeps it in Saved', async () => {
+  test('Mark read removes the item from the readlist but keeps it in Saved', async () => {
     document.querySelector('.mark-read-btn').click();
     await waitForRowExit();
     await flushPromises();
 
-    expect(document.querySelectorAll('.toread-entry')).toHaveLength(1);
-    expect(document.querySelector('.toread-section--backlog .toread-entry')).not.toBeNull();
+    expect(document.querySelectorAll('.toread-entry')).toHaveLength(0);
     expect(document.querySelectorAll('.saved-entry')).toHaveLength(1);
   });
 
-  test('× takes the page off the read list but keeps it in storage by default', async () => {
+  test('× takes the page off the readlist but keeps it in storage by default', async () => {
     document.querySelector('.toread-entry .remove-btn').click();
     await waitForRowExit();
     await flushPromises();
@@ -1208,14 +1263,15 @@ describe('TO READ Mark read and Remove', () => {
     const saved = chrome.storage.sync.set.mock.calls[0][0].savedPages;
     expect(saved).toHaveLength(1);
     expect(saved[0]).not.toHaveProperty('readBy');
+    expect(saved[0]).not.toHaveProperty('onReadlist');
   });
 
-  test('× moves the item into Backlog but keeps it in Saved by default', async () => {
+  test('× clears the item from the readlist but keeps it in Saved by default', async () => {
     document.querySelector('.toread-entry .remove-btn').click();
     await waitForRowExit();
     await flushPromises();
 
-    expect(document.querySelector('.toread-section--backlog .toread-entry')).not.toBeNull();
+    expect(document.querySelectorAll('.toread-entry')).toHaveLength(0);
     expect(document.querySelectorAll('.saved-entry')).toHaveLength(1);
   });
 });
@@ -1248,19 +1304,18 @@ describe('Mark read removes only the affected row', () => {
     expect(weekAfter).toHaveLength(2);
     expect(weekAfter[0]).toBe(weekBefore[0]);
     expect(weekAfter[1]).toBe(weekBefore[2]);
-    // The marked-read row is relocated into Backlog
-    expect(document.querySelectorAll('.toread-section--backlog .toread-entry')).toHaveLength(1);
+    // The marked-read row leaves the readlist entirely (no Backlog relocation)
+    expect(document.querySelectorAll('.toread-section--backlog .toread-entry')).toHaveLength(0);
   });
 
-  test('section count pills update in place', async () => {
+  test('section count pill and badge update in place', async () => {
     document.querySelectorAll('.toread-section--week .mark-read-btn')[1].click();
     await waitForRowExit();
     await flushPromises();
 
     expect(document.querySelector('.toread-section--week .count').textContent).toBe('2');
-    expect(document.querySelector('.toread-section--backlog .count').textContent).toBe('1');
-    // Badge counts all entries including the one moved to Backlog
-    expect(document.getElementById('toread-badge').textContent).toBe('3');
+    // Badge counts the two remaining readlist items
+    expect(document.getElementById('toread-badge').textContent).toBe('2');
   });
 
   test("the page's own storage echo does not rebuild the list", async () => {
@@ -1286,7 +1341,7 @@ describe('Mark read removes only the affected row', () => {
     expect(document.querySelectorAll('.toread-entry')).toHaveLength(1);
   });
 
-  test('the emptied section stays and its row reappears in Backlog', async () => {
+  test('clearing the last readlist item empties the tab', async () => {
     document.body.innerHTML = OPTIONS_DOM;
     chrome.storage.sync.get.mockResolvedValue({ blockedSites: [], savedPages: [e1] });
     jest.resetModules();
@@ -1297,13 +1352,11 @@ describe('Mark read removes only the affected row', () => {
     await waitForRowExit();
     await flushPromises();
 
-    // All sections remain; the source section is now empty, Backlog holds the row
-    expect(document.querySelectorAll('.toread-section')).toHaveLength(5);
-    expect(document.querySelector('.toread-section--week .count').textContent).toBe('0');
-    expect(document.querySelectorAll('.toread-section--backlog .toread-entry')).toHaveLength(1);
-    expect(document.getElementById('toread-empty-state').style.display).toBe('none');
-    expect(document.getElementById('toread-badge').textContent).toBe('1');
-    expect(document.getElementById('toread-badge').classList.contains('hidden')).toBe(false);
+    // The page left the readlist (kept in Saved), so the tab is now empty
+    expect(document.querySelectorAll('.toread-section')).toHaveLength(0);
+    expect(document.getElementById('toread-empty-state').style.display).toBe('block');
+    expect(document.getElementById('toread-badge').classList.contains('hidden')).toBe(true);
+    expect(document.querySelectorAll('.saved-entry')).toHaveLength(1);
   });
 });
 
@@ -1353,7 +1406,7 @@ describe('unsave on readlist removal setting', () => {
     expect(document.querySelectorAll('.saved-entry')).toHaveLength(0);
   });
 
-  test('× only takes the page off the read list when the setting is off', async () => {
+  test('× only takes the page off the readlist when the setting is off', async () => {
     await loadOptions({ unsaveOnReadlistRemove: false });
 
     document.querySelector('.toread-entry .remove-btn').click();
@@ -1363,8 +1416,34 @@ describe('unsave on readlist removal setting', () => {
     const saved = chrome.storage.sync.set.mock.calls[0][0].savedPages;
     expect(saved).toHaveLength(1);
     expect(saved[0]).not.toHaveProperty('readBy');
-    expect(document.querySelector('.toread-section--backlog .toread-entry')).not.toBeNull();
+    expect(saved[0]).not.toHaveProperty('onReadlist');
+    expect(document.querySelectorAll('.toread-entry')).toHaveLength(0);
     expect(document.querySelectorAll('.saved-entry')).toHaveLength(1);
+  });
+
+  test('× on a Backlog item keeps it Saved when the setting is off', async () => {
+    await loadOptions({ unsaveOnReadlistRemove: false, savedPages: [backlogItem('https://x.com/foo')] });
+
+    document.querySelector('.toread-section--backlog .remove-btn').click();
+    await waitForRowExit();
+    await flushPromises();
+
+    const saved = chrome.storage.sync.set.mock.calls[0][0].savedPages;
+    expect(saved).toHaveLength(1);
+    expect(saved[0]).not.toHaveProperty('onReadlist');
+    expect(document.querySelectorAll('.toread-entry')).toHaveLength(0);
+    expect(document.querySelectorAll('.saved-entry')).toHaveLength(1);
+  });
+
+  test('× on a Backlog item unsaves it when the setting is on', async () => {
+    await loadOptions({ unsaveOnReadlistRemove: true, savedPages: [backlogItem('https://x.com/foo')] });
+
+    document.querySelector('.toread-section--backlog .remove-btn').click();
+    await waitForRowExit();
+    await flushPromises();
+
+    expect(chrome.storage.sync.set).toHaveBeenCalledWith({ savedPages: [] });
+    expect(document.querySelectorAll('.saved-entry')).toHaveLength(0);
   });
 
   test('Mark read keeps the page in Saved even when the setting is on', async () => {

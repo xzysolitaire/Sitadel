@@ -19,6 +19,13 @@ function startOfToday() {
   return d.getTime();
 }
 
+// A saved page is on the readlist only once it has been explicitly added —
+// either with a deadline (readBy) or without one ("No deadline" → onReadlist).
+// Plain saved pages are not on the readlist.
+function isOnReadlist(page) {
+  return page.readBy != null || page.onReadlist === true;
+}
+
 function getDeadlineSection(readBy) {
   if (readBy == null) return "backlog";
   if (readBy < startOfToday()) return "pastdue";
@@ -70,6 +77,7 @@ function formatDueLabel(readBy, savedAt) {
 if (typeof module !== "undefined") {
   module.exports = {
     deadlineFromOption,
+    isOnReadlist,
     getDeadlineSection,
     computeImminentSet,
     daysOverdue,
