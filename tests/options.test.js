@@ -976,18 +976,18 @@ describe('renderToReadList', () => {
     expect(document.querySelector('.deadline-chip')).toBeNull();
   });
 
-  test('backlog items have no chip and no mark-read button', () => {
+  test('backlog items have no deadline chip but do have a mark-read button', () => {
     renderToReadList([{ url: 'b', site: 'x.com', pageType: 'article', savedAt: 1 }]);
     const item = document.querySelector('.toread-entry');
     expect(item.querySelector('.deadline-chip')).toBeNull();
-    expect(item.querySelector('.mark-read-btn')).toBeNull();
+    expect(item.querySelector('.mark-read-btn')).not.toBeNull();
     expect(item.querySelector('.remove-btn')).not.toBeNull();
   });
 
-  test('backlog items have an add-deadline button left of the remove button', () => {
+  test('backlog action buttons are ordered add-deadline, mark-read, remove', () => {
     renderToReadList([{ url: 'b', site: 'x.com', pageType: 'article', savedAt: 1 }]);
     const actions = [...document.querySelector('.toread-actions').children].map((el) => el.className);
-    expect(actions).toEqual(['add-deadline-btn', 'remove-btn']);
+    expect(actions).toEqual(['add-deadline-btn', 'mark-read-btn', 'remove-btn']);
   });
 
   test('non-backlog items have no add-deadline button', () => {
@@ -1141,6 +1141,17 @@ describe('Backlog add-deadline picker', () => {
 
     expect(document.querySelector('.toread-section--backlog .toread-entry')).toBeNull();
     expect(document.querySelector('.toread-section--week .toread-entry')).not.toBeNull();
+  });
+
+  test('marking a backlog item read removes it from Saved', async () => {
+    const waitForRowExit = () => new Promise((r) => setTimeout(r, 350));
+    document.querySelector('.toread-section--backlog .mark-read-btn').click();
+    await waitForRowExit();
+    await flushPromises();
+
+    expect(chrome.storage.sync.set).toHaveBeenCalledWith({ savedPages: [] });
+    expect(document.querySelector('.toread-section--backlog .toread-entry')).toBeNull();
+    expect(document.querySelectorAll('.saved-entry')).toHaveLength(0);
   });
 });
 

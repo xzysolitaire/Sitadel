@@ -446,19 +446,6 @@ function buildToReadItem(entry, sectionKey, isNew) {
     actions.appendChild(chip);
   }
 
-  // ✓ Mark read: not shown for Backlog (nothing to demote)
-  if (sectionKey !== "backlog") {
-    const markReadBtn = document.createElement("button");
-    markReadBtn.className = "mark-read-btn";
-    markReadBtn.title = "Mark read";
-    markReadBtn.textContent = "✓";
-    markReadBtn.addEventListener("click", async () => {
-      await animateRowOut(li);
-      markPageRead(entry.url);
-    });
-    actions.appendChild(markReadBtn);
-  }
-
   // 🕐 Add deadline: only for Backlog rows — promotes the page onto the list
   if (sectionKey === "backlog") {
     const addDeadlineBtn = document.createElement("button");
@@ -470,6 +457,23 @@ function buildToReadItem(entry, sectionKey, isNew) {
     );
     actions.appendChild(addDeadlineBtn);
   }
+
+  // ✓ Mark read: on a deadlined row it clears the deadline (demote to Backlog,
+  // stay saved); on a Backlog row there's no deadline to clear, so marking it
+  // seen takes the now-read page off the list entirely.
+  const markReadBtn = document.createElement("button");
+  markReadBtn.className = "mark-read-btn";
+  markReadBtn.title = "Mark read";
+  markReadBtn.textContent = "✓";
+  markReadBtn.addEventListener("click", async () => {
+    await animateRowOut(li);
+    if (sectionKey === "backlog") {
+      removeSavedPage(entry.url);
+    } else {
+      markPageRead(entry.url);
+    }
+  });
+  actions.appendChild(markReadBtn);
 
   const removeBtn = document.createElement("button");
   removeBtn.className = "remove-btn";
