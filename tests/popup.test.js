@@ -13,7 +13,7 @@ const POPUP_DOM = `
       <button class="pill" data-option="7 days">7 days</button>
       <button class="pill" data-option="30 days">30 days</button>
       <button class="pill" data-option="3 months">3 months</button>
-      <button class="pill pill--none" data-option="none">No deadline</button>
+      <button class="pill pill--backlog" data-option="backlog">Backlog</button>
     </div>
   </div>
   <div id="feedback" class="feedback hidden"></div>
@@ -428,17 +428,17 @@ describe('readlist: deadline picker', () => {
     expect(document.getElementById('deadline-picker').classList.contains('open')).toBe(false);
   });
 
-  test('No deadline adds the page to the readlist (Backlog) and closes the picker', async () => {
+  test('Backlog adds the page to the readlist and transitions to Mark read', async () => {
     document.getElementById('save-btn').click();
 
     chrome.storage.sync.get.mockResolvedValue({ savedPages: [entry] });
-    document.querySelector('.pill[data-option="none"]').click();
+    document.querySelector('.pill[data-option="backlog"]').click();
     await flushPromises();
 
     const saved = chrome.storage.sync.set.mock.calls[0][0].savedPages[0];
     expect(saved.onReadlist).toBe(true);
     expect(saved).not.toHaveProperty('readBy');
-    expect(saveLabelText()).toBe('Readlist');
+    expect(saveLabelText()).toBe('Mark read');
     expect(document.getElementById('deadline-picker').classList.contains('open')).toBe(false);
   });
 });
@@ -454,7 +454,7 @@ describe('readlist: mark read', () => {
     await flushPromises();
   });
 
-  test('Mark read tap removes readBy from storage and shows Readlist again', async () => {
+  test('Mark read tap takes the page off the readlist and shows Readlist again', async () => {
     chrome.storage.sync.get.mockResolvedValue({ savedPages: [entry] });
     document.getElementById('save-btn').click();
     await flushPromises();
@@ -462,8 +462,26 @@ describe('readlist: mark read', () => {
     const saved = chrome.storage.sync.set.mock.calls[0][0].savedPages;
     expect(saved).toHaveLength(1);
     expect(saved[0]).not.toHaveProperty('readBy');
+    expect(saved[0]).not.toHaveProperty('onReadlist');
     expect(saveLabelText()).toBe('Readlist');
     expect(document.querySelector('#block-btn .btn-label').textContent).toBe('Unsave');
+  });
+
+  test('a Backlog page (on the readlist, no deadline) opens as Mark read', async () => {
+    const backlog = { url: TAB_URL, site: 'github.com', pageType: 'article', savedAt: 1, onReadlist: true };
+    setupPopup(TAB_URL, [], [backlog]);
+    await flushPromises();
+
+    expect(saveLabelText()).toBe('Mark read');
+    expect(document.querySelector('#block-btn .btn-label').textContent).toBe('Unsave');
+  });
+
+  test('a plain saved page (not on the readlist) opens as Readlist', async () => {
+    const plain = { url: TAB_URL, site: 'github.com', pageType: 'article', savedAt: 1 };
+    setupPopup(TAB_URL, [], [plain]);
+    await flushPromises();
+
+    expect(saveLabelText()).toBe('Readlist');
   });
 
   test('label crossfades from due text to saved text on Mark read', async () => {

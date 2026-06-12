@@ -159,7 +159,8 @@ async function init() {
 
     const entry = savedPages.find((p) => p.url === tab.url);
     if (entry) {
-      setSaveState(entry.readBy != null ? "markread" : "readlist");
+      // On the readlist (deadline or Backlog) → Mark read; saved-only → + Readlist
+      setSaveState(isOnReadlist(entry) ? "markread" : "readlist");
       showSaveLabel(entry);
     } else {
       setSaveState("save");
@@ -216,8 +217,9 @@ async function handleDeadlineOption(option) {
   const { [SAVED_KEY]: saved = [] } = await chrome.storage.sync.get(SAVED_KEY);
   let updatedEntry = null;
 
-  if (option === "none") {
-    // "No deadline" still adds the page to the readlist — as a Backlog item.
+  if (option === "backlog") {
+    // "Backlog" adds the page to the readlist without a deadline. It's now on
+    // the list, so the primary action becomes Mark read — same as a deadline.
     const updated = saved.map((p) => {
       if (p.url !== currentTab.url) return p;
       const { readBy, ...rest } = p;
@@ -226,7 +228,7 @@ async function handleDeadlineOption(option) {
     });
     await chrome.storage.sync.set({ [SAVED_KEY]: updated });
     if (updatedEntry) showSaveLabel(updatedEntry, { crossfade: true });
-    setSaveState("readlist");
+    setSaveState("markread");
     return;
   }
 

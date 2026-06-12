@@ -203,12 +203,12 @@ body {
   background: rgba(38, 118, 255, 0.1);
 }
 
-.pill--none {
+.pill--backlog {
   color: #888;
   border-color: rgba(0, 0, 0, 0.12);
 }
 
-.pill--none:hover {
+.pill--backlog:hover {
   background: rgba(0, 0, 0, 0.05);
 }
 
