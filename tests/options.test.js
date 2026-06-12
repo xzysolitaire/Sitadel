@@ -1013,7 +1013,7 @@ describe('rolling days picker', () => {
     document.querySelector('.deadline-chip').click();
 
     const options = [...document.querySelectorAll('.deadline-roller-option')].map((o) => o.textContent);
-    expect(options).toEqual(['—', '+1 day', '+3 days', '+7 days', '+30 days', 'Remove deadline']);
+    expect(options).toEqual(['+1 day', '+3 days', '+7 days', '+30 days', 'Remove deadline']);
   });
 
   test('the roller gets the open class so it animates in', () => {
@@ -1028,15 +1028,6 @@ describe('rolling days picker', () => {
     expect(roller.classList.contains('deadline-roller--open')).toBe(false);
   });
 
-  test('"—" closes the roller without writing to storage', async () => {
-    document.querySelector('.deadline-chip').click();
-    document.querySelector('.deadline-roller-option--noop').click();
-    await flushPromises();
-    await waitRollerExit();
-
-    expect(chrome.storage.sync.set).not.toHaveBeenCalled();
-    expect(document.querySelector('.deadline-roller')).toBeNull();
-  });
 
   test('selecting "+7 days" sets readBy to 7 days from now', async () => {
     document.querySelector('.deadline-chip').click();
@@ -1071,12 +1062,13 @@ describe('rolling days picker', () => {
     expect(document.querySelector('.deadline-roller')).toBeNull();
   });
 
-  test('tapping the chip again dismisses the picker', async () => {
+  test('tapping the chip again dismisses the picker without writing to storage', async () => {
     document.querySelector('.deadline-chip').click();
     expect(document.querySelector('.deadline-roller')).not.toBeNull();
     document.querySelector('.deadline-chip').click();
     await waitRollerExit();
     expect(document.querySelector('.deadline-roller')).toBeNull();
+    expect(chrome.storage.sync.set).not.toHaveBeenCalled();
   });
 
   test('opening a second roller closes the first', () => {

@@ -204,10 +204,10 @@ const TOREAD_SECTIONS = [
 ];
 
 // Roller options for a row that already has a deadline: roll it forward by a
-// fixed amount, leave it (—), or drop the deadline entirely.
+// fixed amount or drop the deadline entirely. (Dismissing the picker — tap
+// again or click away — covers the "leave it" case.)
 function adjustDeadlineOptions(entry) {
   return [
-    { label: "—", variant: "noop" },
     { label: "+1 day", run: () => applyRollerDays(entry.url, 1) },
     { label: "+3 days", run: () => applyRollerDays(entry.url, 3) },
     { label: "+7 days", run: () => applyRollerDays(entry.url, 7) },
@@ -552,7 +552,6 @@ function openRollingPicker(anchor, options) {
   for (const opt of options) {
     const btn = document.createElement("button");
     btn.className = "deadline-roller-option";
-    if (opt.variant === "noop") btn.classList.add("deadline-roller-option--noop");
     if (opt.variant === "remove") btn.classList.add("deadline-roller-option--remove");
     btn.textContent = opt.label;
     btn.addEventListener("click", () => {

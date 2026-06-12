@@ -634,10 +634,6 @@ select {
   background: rgba(0, 0, 0, 0.05);
 }
 
-.deadline-roller-option--noop {
-  color: #aaa;
-}
-
 .deadline-roller-option--remove {
   color: #c53030;
 }
