@@ -2,6 +2,7 @@ const flushPromises = () => new Promise((r) => setImmediate(r));
 
 const POPUP_DOM = `
   <span id="hostname">—</span>
+  <span id="page-title" class="page-title">—</span>
   <div id="save-label" class="save-label hidden"></div>
   <button id="save-btn" class="btn btn-save" disabled><span class="btn-label">Save</span></button>
   <button id="block-btn" disabled><span class="btn-label">Block this site</span></button>
@@ -311,6 +312,93 @@ describe('unsave action — additional', () => {
     await flushPromises();
 
     expect(document.getElementById('save-btn').disabled).toBe(false);
+  });
+});
+
+// ─── editable page name ──────────────────────────────────────────────────────
+
+describe('editable page name', () => {
+  const TAB_URL = 'https://github.com/foo';
+  const entry = { url: TAB_URL, site: 'github.com', pageType: 'article', savedAt: 1, title: 'Stored Name' };
+  const titleEl = () => document.getElementById('page-title');
+
+  const edit = (text) => {
+    titleEl().click();              // enter edit mode
+    titleEl().textContent = text;   // simulate typing
+    titleEl().dispatchEvent(new Event('blur')); // commit
+  };
+
+  test('shows the live tab title on init', async () => {
+    setupPopup(TAB_URL);
+    await flushPromises();
+
+    expect(titleEl().textContent).toBe('Test Page Title');
+  });
+
+  test('prefers a saved entry’s stored title over the live one', async () => {
+    setupPopup(TAB_URL, [], [entry]);
+    await flushPromises();
+
+    expect(titleEl().textContent).toBe('Stored Name');
+  });
+
+  test('clicking the name puts it into edit mode', async () => {
+    setupPopup(TAB_URL);
+    await flushPromises();
+
+    titleEl().click();
+    expect(titleEl().getAttribute('contenteditable')).toBe('true');
+    expect(titleEl().classList.contains('editing')).toBe(true);
+  });
+
+  test('Save uses the edited name', async () => {
+    setupPopup(TAB_URL);
+    await flushPromises();
+
+    edit('My Custom Name');
+    await flushPromises();
+
+    chrome.storage.sync.get.mockResolvedValue({ savedPages: [] });
+    document.getElementById('save-btn').click();
+    await flushPromises();
+
+    const saved = chrome.storage.sync.set.mock.calls.at(-1)[0].savedPages[0];
+    expect(saved.title).toBe('My Custom Name');
+  });
+
+  test('renaming an already-saved page persists the new title', async () => {
+    setupPopup(TAB_URL, [], [entry]);
+    await flushPromises();
+
+    chrome.storage.sync.get.mockResolvedValue({ savedPages: [entry] });
+    edit('Renamed Page');
+    await flushPromises();
+
+    const saved = chrome.storage.sync.set.mock.calls.at(-1)[0].savedPages[0];
+    expect(saved.title).toBe('Renamed Page');
+    expect(saved.url).toBe(TAB_URL);
+  });
+
+  test('an empty edit snaps back to the previous name', async () => {
+    setupPopup(TAB_URL);
+    await flushPromises();
+
+    edit('   ');
+    await flushPromises();
+
+    expect(titleEl().textContent).toBe('Test Page Title');
+    expect(chrome.storage.sync.set).not.toHaveBeenCalled();
+  });
+
+  test('does not write storage when the name is unchanged', async () => {
+    setupPopup(TAB_URL, [], [entry]);
+    await flushPromises();
+
+    chrome.storage.sync.get.mockResolvedValue({ savedPages: [entry] });
+    edit('Stored Name'); // same as current
+    await flushPromises();
+
+    expect(chrome.storage.sync.set).not.toHaveBeenCalled();
   });
 });
 

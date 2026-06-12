@@ -19,6 +19,7 @@ const feedbackEl = document.getElementById("feedback");
 
 let currentHostname = null;
 let currentTab = null;
+let currentTitle = null; // source of truth for the page name to save (user-editable)
 let siteBlocked = false;
 let saveState = "save"; // save | undo | readlist | markread | unsave
 let undoTimer = null;
@@ -152,7 +153,8 @@ async function init() {
     currentTab = tab;
     currentHostname = url.hostname.replace(/^www\./, "");
     hostnameEl.textContent = currentHostname;
-    if (pageTitleEl) pageTitleEl.textContent = tab.title || currentHostname;
+    currentTitle = tab.title || currentHostname;
+    if (pageTitleEl) pageTitleEl.textContent = currentTitle;
     setFavicon(tab.favIconUrl || "");
     blockBtn.disabled = false;
     saveBtn.disabled = false;
@@ -164,6 +166,11 @@ async function init() {
 
     const entry = savedPages.find((p) => p.url === tab.url);
     if (entry) {
+      // A saved page may have been renamed; the stored title wins over the live one.
+      if (entry.title) {
+        currentTitle = entry.title;
+        if (pageTitleEl) pageTitleEl.textContent = currentTitle;
+      }
       // On the readlist (deadline or Backlog) → Mark read; saved-only → + Readlist
       setSaveState(isOnReadlist(entry) ? "markread" : "readlist");
       showSaveLabel(entry);
@@ -193,7 +200,7 @@ async function handleSave() {
     site: currentHostname,
     pageType,
     savedAt: Date.now(),
-    title: currentTab.title || currentHostname,
+    title: currentTitle || currentTab.title || currentHostname,
   };
   const { [SAVED_KEY]: saved = [] } = await chrome.storage.sync.get(SAVED_KEY);
   await chrome.storage.sync.set({ [SAVED_KEY]: [...saved, newEntry] });
@@ -316,6 +323,62 @@ blockBtn.addEventListener("click", async () => {
 optionsBtn.addEventListener("click", () => {
   chrome.runtime.openOptionsPage();
   window.close();
+});
+
+// ── Editable page name ──
+// Tapping the page name turns it into an inline editor, letting the user rename
+// the page before saving (or rename one that's already saved).
+function beginTitleEdit() {
+  if (!pageTitleEl || !currentTab) return;
+  if (pageTitleEl.getAttribute("contenteditable") === "true") return;
+  pageTitleEl.setAttribute("contenteditable", "true");
+  pageTitleEl.classList.add("editing");
+  pageTitleEl.focus();
+  try {
+    // Select the whole name so typing replaces it.
+    const range = document.createRange();
+    range.selectNodeContents(pageTitleEl);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+  } catch { /* selection unsupported (e.g. jsdom) — caret placement only */ }
+}
+
+async function commitTitleEdit() {
+  if (!pageTitleEl) return;
+  pageTitleEl.removeAttribute("contenteditable");
+  pageTitleEl.classList.remove("editing");
+
+  const next = pageTitleEl.textContent.trim();
+  if (!next || next === currentTitle) {
+    // Empty or unchanged → snap back to the last good name.
+    pageTitleEl.textContent = currentTitle;
+    return;
+  }
+  currentTitle = next;
+  pageTitleEl.textContent = currentTitle;
+
+  // If the page is already saved, persist the rename so the Saved list matches.
+  if (!currentTab) return;
+  const { [SAVED_KEY]: saved = [] } = await chrome.storage.sync.get(SAVED_KEY);
+  if (!saved.some((p) => p.url === currentTab.url)) return;
+  await chrome.storage.sync.set({
+    [SAVED_KEY]: saved.map((p) => (p.url === currentTab.url ? { ...p, title: currentTitle } : p)),
+  });
+  showFeedback("Renamed", "success");
+}
+
+pageTitleEl?.addEventListener("click", beginTitleEdit);
+pageTitleEl?.addEventListener("blur", commitTitleEdit);
+pageTitleEl?.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    pageTitleEl.blur();
+  } else if (e.key === "Escape") {
+    e.preventDefault();
+    pageTitleEl.textContent = currentTitle; // discard the edit
+    pageTitleEl.blur();
+  }
 });
 
 init();

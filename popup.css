@@ -126,6 +126,24 @@ body {
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  cursor: text;
+  border-radius: 4px;
+  margin: -1px -4px;
+  padding: 1px 4px;
+}
+
+.page-title:hover {
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.page-title.editing {
+  display: block;
+  -webkit-line-clamp: unset;
+  overflow: visible;
+  cursor: text;
+  outline: none;
+  background: #fff;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.55);
 }
 
 /* ── Due-date label ── */
