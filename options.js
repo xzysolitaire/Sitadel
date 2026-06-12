@@ -35,6 +35,16 @@ let savedEntries = [];
 let unblockCooldown = true;
 let unsaveOnReadlistRemove = false;
 
+// Writes to savedPages from this page also fire storage.onChanged here. We
+// count our own pending writes and skip the rebuild for them, so a self-write
+// never repaints the lists. (A string compare is unreliable — chrome.storage
+// doesn't preserve object key order in the echoed newValue.)
+let pendingSavedSelfWrites = 0;
+async function persistSaved() {
+  pendingSavedSelfWrites++;
+  await chrome.storage.sync.set({ [SAVED_KEY]: savedEntries });
+}
+
 function normalise(raw) {
   let s = raw.trim().toLowerCase();
   s = s.replace(/^https?:\/\//i, "");
@@ -174,7 +184,7 @@ function savedAddOptions(url, btn) {
 // (with animation), and re-sync the Readlist tab — no Saved-list rebuild.
 async function addSavedReadlist(url, btn, mutate) {
   savedEntries = savedEntries.map((p) => (p.url === url ? mutate(p) : p));
-  await chrome.storage.sync.set({ [SAVED_KEY]: savedEntries });
+  await persistSaved();
   applyReadlistToggle(btn, true, true);
   renderToReadList(savedEntries);
 }
@@ -185,7 +195,7 @@ async function removeSavedReadlist(url, btn) {
     const { readBy, onReadlist, ...rest } = p;
     return rest;
   });
-  await chrome.storage.sync.set({ [SAVED_KEY]: savedEntries });
+  await persistSaved();
   applyReadlistToggle(btn, false, true);
   renderToReadList(savedEntries);
 }
@@ -258,10 +268,14 @@ function renderSavedList(entries) {
     removeBtn.textContent = "×";
     removeBtn.addEventListener("click", () => removeSavedPage(entry.url));
 
+    const actions = document.createElement("div");
+    actions.className = "saved-actions";
+    actions.appendChild(readlistBtn);
+    actions.appendChild(removeBtn);
+
     li.appendChild(faviconWrap);
     li.appendChild(link);
-    li.appendChild(readlistBtn);
-    li.appendChild(removeBtn);
+    li.appendChild(actions);
     savedList.insertBefore(li, savedEmptyState);
   }
 
@@ -654,7 +668,7 @@ function openRollingPicker(anchor, options) {
 async function applyRollerDays(url, days) {
   const readBy = Date.now() + days * 24 * 60 * 60 * 1000;
   savedEntries = savedEntries.map((p) => (p.url === url ? { ...p, readBy, onReadlist: true } : p));
-  await chrome.storage.sync.set({ [SAVED_KEY]: savedEntries });
+  await persistSaved();
   renderToReadList(savedEntries);
   renderSavedList(savedEntries);
 }
@@ -666,7 +680,7 @@ async function removeDeadline(url) {
     const { readBy, ...rest } = p;
     return { ...rest, onReadlist: true };
   });
-  await chrome.storage.sync.set({ [SAVED_KEY]: savedEntries });
+  await persistSaved();
   renderToReadList(savedEntries);
   renderSavedList(savedEntries);
 }
@@ -741,7 +755,7 @@ async function setPageDeadline(url, option) {
   const readBy = deadlineFromOption(option);
   if (readBy == null) return;
   savedEntries = savedEntries.map((p) => (p.url === url ? { ...p, readBy, onReadlist: true } : p));
-  await chrome.storage.sync.set({ [SAVED_KEY]: savedEntries });
+  await persistSaved();
   renderToReadList(savedEntries);
   renderSavedList(savedEntries);
 }
@@ -754,7 +768,7 @@ async function markPageRead(url) {
     const { readBy, onReadlist, ...rest } = p;
     return rest;
   });
-  await chrome.storage.sync.set({ [SAVED_KEY]: savedEntries });
+  await persistSaved();
   removeToReadRow(url);
   renderSavedList(savedEntries);
 }
@@ -771,7 +785,7 @@ async function removeFromReadlist(url) {
 
 async function removeSavedPage(url) {
   savedEntries = savedEntries.filter((p) => p.url !== url);
-  await chrome.storage.sync.set({ [SAVED_KEY]: savedEntries });
+  await persistSaved();
   removeToReadRow(url);
   renderSavedList(savedEntries);
 }
@@ -858,14 +872,16 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (changes[STORAGE_KEY]) renderList(changes[STORAGE_KEY].newValue || []);
   if (changes[SAVED_KEY]) {
     const next = changes[SAVED_KEY].newValue || [];
-    // onChanged also fires for this page's own writes; the UI was already
-    // updated surgically, and a full re-render here would rebuild every
-    // row — a visible flash. Only re-render for external changes.
-    if (JSON.stringify(next) !== JSON.stringify(savedEntries)) {
-      savedEntries = next;
-      renderSavedList(savedEntries);
-      renderToReadList(savedEntries);
+    savedEntries = next;
+    // Our own writes were already reflected surgically; rebuilding here would
+    // repaint every row (a visible flash). Skip them; only external changes
+    // (e.g. from the popup or another tab) trigger a full re-render.
+    if (pendingSavedSelfWrites > 0) {
+      pendingSavedSelfWrites--;
+      return;
     }
+    renderSavedList(savedEntries);
+    renderToReadList(savedEntries);
   }
 });
 

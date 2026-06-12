@@ -774,6 +774,14 @@ select {
 }
 
 /* Remove button override for saved entries */
+/* Saved-row action buttons — match the Readlist tab's tight spacing */
+.saved-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
 /* Saved-tab readlist toggle (list + plus / list + check) */
 .readlist-toggle {
   position: relative;

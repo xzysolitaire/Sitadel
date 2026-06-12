@@ -573,6 +573,29 @@ describe('Saved tab readlist toggle', () => {
     expect(saved).not.toHaveProperty('readBy');
     expect(saved).not.toHaveProperty('onReadlist');
   });
+
+  test('the add write does not rebuild the Saved list (no flash)', async () => {
+    await loadOptions([plainSaved('https://x.com/a')]);
+    const rowBefore = document.querySelector('.saved-entry');
+
+    savedToggle().click();
+    rollerOption('Backlog').click();
+    await flushPromises();
+
+    // Echo our own write back through onChanged with reordered object keys —
+    // chrome.storage doesn't preserve key order, which is what broke the old
+    // string-compare guard. The self-write counter must skip it regardless.
+    const written = chrome.storage.sync.set.mock.calls[0][0].savedPages;
+    const reordered = written.map((p) => {
+      const out = {};
+      Object.keys(p).sort().forEach((k) => { out[k] = p[k]; });
+      return out;
+    });
+    const listener = chrome.storage.onChanged.addListener.mock.calls[0][0];
+    listener({ savedPages: { newValue: reordered } }, 'sync');
+
+    expect(document.querySelector('.saved-entry')).toBe(rowBefore);
+  });
 });
 
 // ─── renderSavedList — sort (additional) ─────────────────────────────────────
