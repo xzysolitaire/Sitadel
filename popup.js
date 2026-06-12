@@ -124,8 +124,13 @@ function closePicker() {
 function setFavicon(favIconUrl) {
   const wrap = document.getElementById("favicon-wrap");
   if (!wrap || !favIconUrl) return;
+  // Reserve the icon's slot up front so the title is sized correctly from the
+  // first paint; the image then fades in once loaded instead of the title
+  // starting full-width and shrinking (layout flash). Collapse it if it fails.
+  wrap.style.display = "block";
+  faviconEl.style.opacity = "0";
   faviconEl.src = favIconUrl;
-  faviconEl.onload = () => { wrap.style.display = "block"; };
+  faviconEl.onload = () => { faviconEl.style.opacity = "1"; };
   faviconEl.onerror = () => { wrap.style.display = "none"; };
 }
 

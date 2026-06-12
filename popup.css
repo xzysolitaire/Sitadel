@@ -117,6 +117,7 @@ body {
   border-radius: 4px;
   display: block;
   object-fit: contain;
+  transition: opacity 0.15s ease;
 }
 
 .page-title {
