@@ -100,6 +100,8 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
+  /* Anchor for the floating title editor below. */
+  position: relative;
 }
 
 .favicon-wrap {
@@ -130,20 +132,37 @@ body {
   border-radius: 4px;
   margin: -1px -4px;
   padding: 1px 4px;
+  /* Flex child: allow it to shrink and wrap instead of overflowing horizontally. */
+  min-width: 0;
+  max-width: 100%;
 }
 
 .page-title:hover {
   background: rgba(255, 255, 255, 0.7);
 }
 
+/* While editing, the title floats out of flow so a long name grows downward
+ * and covers the content below instead of pushing it down (popup size stays
+ * fixed — the row's height is held by an inline min-height set in JS). */
 .page-title.editing {
+  position: absolute;
+  top: -1px;
+  left: -1px;
+  right: -1px;
+  z-index: 20;
   display: block;
   -webkit-line-clamp: unset;
   overflow: visible;
   cursor: text;
   outline: none;
+  margin: 0;
+  padding: 4px 6px;
+  border-radius: 6px;
   background: #fff;
-  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.55);
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.55), 0 6px 18px rgba(0, 0, 0, 0.18);
+  /* Fixed width; long text wraps and the panel grows downward. */
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 /* ── Due-date label ── */

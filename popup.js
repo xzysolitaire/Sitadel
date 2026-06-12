@@ -331,6 +331,10 @@ optionsBtn.addEventListener("click", () => {
 function beginTitleEdit() {
   if (!pageTitleEl || !currentTab) return;
   if (pageTitleEl.getAttribute("contenteditable") === "true") return;
+  // Hold the row's current height so the floating editor doesn't collapse it
+  // (the popup keeps its size while the editor expands over the content below).
+  const row = pageTitleEl.closest(".page-info");
+  if (row) row.style.minHeight = `${row.offsetHeight}px`;
   pageTitleEl.setAttribute("contenteditable", "true");
   pageTitleEl.classList.add("editing");
   pageTitleEl.focus();
@@ -348,6 +352,8 @@ async function commitTitleEdit() {
   if (!pageTitleEl) return;
   pageTitleEl.removeAttribute("contenteditable");
   pageTitleEl.classList.remove("editing");
+  const row = pageTitleEl.closest(".page-info");
+  if (row) row.style.minHeight = ""; // release the reserved height
 
   const next = pageTitleEl.textContent.trim();
   if (!next || next === currentTitle) {
