@@ -88,6 +88,11 @@ function updateSecondaryButton(animate) {
   } else {
     blockBtn.disabled = false;
   }
+
+  // Mutually exclusive with blocking: a page on a blocked site can't be saved.
+  // (Saving is disabled only before the page is saved; once saved the save-side
+  // button manages the readlist and stays usable.)
+  saveBtn.disabled = siteBlocked && next === "block";
 }
 
 function showSaveLabel(entry, { crossfade = false } = {}) {

@@ -53,6 +53,25 @@ describe('popup init', () => {
     expect(btn.textContent).toBe('Blocked');
   });
 
+  test('disables Save on a blocked site (mutually exclusive with blocking)', async () => {
+    setupPopup('https://reddit.com', [{ site: 'reddit.com', blockedAt: 0 }]);
+    await flushPromises();
+
+    expect(document.getElementById('save-btn').disabled).toBe(true);
+  });
+
+  test('blocking the current site disables Save live', async () => {
+    setupPopup('https://reddit.com', []);
+    await flushPromises();
+    expect(document.getElementById('save-btn').disabled).toBe(false);
+
+    chrome.storage.sync.get.mockResolvedValue({ blockedSites: [] });
+    document.getElementById('block-btn').click();
+    await flushPromises();
+
+    expect(document.getElementById('save-btn').disabled).toBe(true);
+  });
+
   test('does nothing for non-http/https tabs', async () => {
     setupPopup('chrome://settings');
     await flushPromises();
