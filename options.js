@@ -113,38 +113,80 @@ function renderList(entries) {
 const READLIST_ADD_SVG = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="3" y1="6" x2="16" y2="6" stroke="#475569"/><line x1="3" y1="12" x2="16" y2="12" stroke="#475569"/><line x1="3" y1="18" x2="11" y2="18" stroke="#475569"/><line x1="18" y1="15" x2="18" y2="21" stroke="#3182ce"/><line x1="15" y1="18" x2="21" y2="18" stroke="#3182ce"/></svg>`;
 const READLIST_ON_SVG = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="3" y1="6" x2="16" y2="6" stroke="#475569"/><line x1="3" y1="12" x2="16" y2="12" stroke="#475569"/><line x1="3" y1="18" x2="11" y2="18" stroke="#475569"/><polyline points="14.5 18 16.5 20 20.5 15.5" stroke="#2f855a"/></svg>`;
 
-function applyReadlistToggle(btn, on) {
+// Add-to-readlist options offered from the Saved tab — the deadline options
+// plus Backlog (no deadline), mirroring the popup's "Add to readlist" picker.
+const SAVED_ADD_OPTIONS = ["Tomorrow", "3 days", "7 days", "30 days", "3 months"];
+
+function applyReadlistToggle(btn, on, animate) {
+  const prev = btn.innerHTML;
   btn.classList.toggle("is-on", on);
   btn.title = on ? "On your readlist — tap to remove" : "Add to readlist";
   btn.setAttribute("aria-pressed", on ? "true" : "false");
   btn.innerHTML = on ? READLIST_ON_SVG : READLIST_ADD_SVG;
+  if (!animate || !prev) return;
+
+  // Crossfade: the old icon lives on in an absolutely-positioned ghost that
+  // fades out while the new icon fades in (matches the popup's swap feel).
+  const ghost = document.createElement("span");
+  ghost.className = "readlist-toggle-ghost";
+  ghost.innerHTML = prev;
+  btn.appendChild(ghost);
+  btn.classList.add("readlist-toggle--swapping");
+  clearTimeout(btn._swapTimer);
+  btn._swapTimer = setTimeout(() => {
+    ghost.remove();
+    btn.classList.remove("readlist-toggle--swapping");
+  }, 240);
 }
 
 function buildReadlistToggle(entry) {
   const btn = document.createElement("button");
   btn.className = "readlist-toggle";
-  applyReadlistToggle(btn, isOnReadlist(entry));
-  btn.addEventListener("click", () => toggleReadlist(entry.url, btn));
+  applyReadlistToggle(btn, isOnReadlist(entry), false);
+  btn.addEventListener("click", () => onReadlistToggleClick(entry.url, btn));
   return btn;
 }
 
-// Toggle a saved page's readlist membership from the Saved tab. Adding puts it
-// on the readlist with no deadline (Backlog); removing clears readBy/onReadlist
-// but keeps it Saved. The button swaps in place; the Readlist tab is re-synced.
-async function toggleReadlist(url, btn) {
+// Add → open the deadline picker; On → remove from the readlist.
+function onReadlistToggleClick(url, btn) {
   const entry = savedEntries.find((p) => p.url === url);
   if (!entry) return;
-  const on = isOnReadlist(entry);
+  if (isOnReadlist(entry)) {
+    removeSavedReadlist(url, btn);
+  } else {
+    openRollingPicker(btn, savedAddOptions(url, btn));
+  }
+}
+
+function savedAddOptions(url, btn) {
+  const options = SAVED_ADD_OPTIONS.map((option) => ({
+    label: option,
+    run: () => addSavedReadlist(url, btn, (p) => ({ ...p, readBy: deadlineFromOption(option), onReadlist: true })),
+  }));
+  options.push({
+    label: "Backlog",
+    run: () => addSavedReadlist(url, btn, (p) => ({ ...p, onReadlist: true })),
+  });
+  return options;
+}
+
+// Mutate one saved page's readlist fields, persist, swap the button in place
+// (with animation), and re-sync the Readlist tab — no Saved-list rebuild.
+async function addSavedReadlist(url, btn, mutate) {
+  savedEntries = savedEntries.map((p) => (p.url === url ? mutate(p) : p));
+  await chrome.storage.sync.set({ [SAVED_KEY]: savedEntries });
+  applyReadlistToggle(btn, true, true);
+  renderToReadList(savedEntries);
+}
+
+async function removeSavedReadlist(url, btn) {
   savedEntries = savedEntries.map((p) => {
     if (p.url !== url) return p;
-    if (on) {
-      const { readBy, onReadlist, ...rest } = p;
-      return rest;
-    }
-    return { ...p, onReadlist: true };
+    const { readBy, onReadlist, ...rest } = p;
+    return rest;
   });
   await chrome.storage.sync.set({ [SAVED_KEY]: savedEntries });
-  applyReadlistToggle(btn, !on);
+  applyReadlistToggle(btn, false, true);
   renderToReadList(savedEntries);
 }
 

@@ -513,9 +513,21 @@ describe('Saved tab readlist toggle', () => {
     expect([...toggles].every((t) => t.classList.contains('is-on'))).toBe(true);
   });
 
-  test('tapping add puts the page on the readlist (Backlog) and flips the button', async () => {
+  const rollerOption = (label) =>
+    [...document.querySelectorAll('.deadline-roller-option')].find((o) => o.textContent === label);
+
+  test('tapping add opens the picker with the add-to-readlist options', async () => {
     await loadOptions([plainSaved('https://x.com/a')]);
     savedToggle().click();
+
+    const options = [...document.querySelectorAll('.deadline-roller-option')].map((o) => o.textContent);
+    expect(options).toEqual(['Tomorrow', '3 days', '7 days', '30 days', '3 months', 'Backlog']);
+  });
+
+  test('choosing Backlog from the picker adds it (no deadline) and flips the button', async () => {
+    await loadOptions([plainSaved('https://x.com/a')]);
+    savedToggle().click();
+    rollerOption('Backlog').click();
     await flushPromises();
 
     const saved = chrome.storage.sync.set.mock.calls[0][0].savedPages[0];
@@ -524,6 +536,19 @@ describe('Saved tab readlist toggle', () => {
     expect(savedToggle().classList.contains('is-on')).toBe(true);
     // synced into the (hidden) Readlist tab's Backlog section
     expect(document.querySelector('.toread-section--backlog .toread-entry')).not.toBeNull();
+  });
+
+  test('choosing a deadline from the picker adds it with readBy in its bucket', async () => {
+    await loadOptions([plainSaved('https://x.com/a')]);
+    savedToggle().click();
+    rollerOption('7 days').click();
+    await flushPromises();
+
+    const saved = chrome.storage.sync.set.mock.calls[0][0].savedPages[0];
+    expect(saved.onReadlist).toBe(true);
+    expect(saved.readBy).toBeGreaterThan(Date.now() + 6.9 * DAY_MS);
+    expect(savedToggle().classList.contains('is-on')).toBe(true);
+    expect(document.querySelector('.toread-section--week .toread-entry')).not.toBeNull();
   });
 
   test('tapping on-list removes it from the readlist but keeps it Saved', async () => {

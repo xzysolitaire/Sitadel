@@ -776,6 +776,7 @@ select {
 /* Remove button override for saved entries */
 /* Saved-tab readlist toggle (list + plus / list + check) */
 .readlist-toggle {
+  position: relative;
   width: 28px;
   height: 28px;
   padding: 0;
@@ -800,6 +801,30 @@ select {
 
 .readlist-toggle.is-on:hover {
   background: #d7f0e2;
+}
+
+/* Icon crossfade when toggling add ↔ added */
+.readlist-toggle-ghost {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: readlistToggleOut 0.2s ease forwards;
+}
+
+.readlist-toggle--swapping > :not(.readlist-toggle-ghost) {
+  animation: readlistToggleIn 0.2s ease;
+}
+
+@keyframes readlistToggleOut {
+  from { opacity: 1; transform: scale(1); }
+  to   { opacity: 0; transform: scale(0.6); }
+}
+
+@keyframes readlistToggleIn {
+  from { opacity: 0; transform: scale(0.6); }
+  to   { opacity: 1; transform: scale(1); }
 }
 
 .saved-entry .remove-btn {
