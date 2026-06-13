@@ -572,6 +572,7 @@ select {
   align-items: center;
   gap: 6px;
   flex-shrink: 0;
+  transition: opacity 0.2s ease;
 }
 
 .deadline-chip {
@@ -755,21 +756,32 @@ select {
   color: #555;
 }
 
-/* Per-row selection checkbox — only visible while curating. */
+/* Per-row selection checkbox. Collapsed to zero width when idle, with a
+ * negative margin cancelling the row gap so the row sits flush. Curate mode
+ * expands it — the favicon and text slide right as it fades in (flex reflows
+ * each frame), and slide back left as it collapses. */
 .toread-check {
-  display: none;
   flex-shrink: 0;
-  width: 16px;
+  width: 0;
   height: 16px;
+  margin-right: -12px;
+  opacity: 0;
   cursor: pointer;
+  pointer-events: none;
+  transition: width 0.2s ease, margin-right 0.2s ease, opacity 0.2s ease;
 }
 
 #toread-sections.curating .toread-check {
-  display: block;
+  width: 16px;
+  margin-right: 0;
+  opacity: 1;
+  pointer-events: auto;
 }
 
+/* Actions just fade — they keep their slot while the cell slides. */
 #toread-sections.curating .toread-actions {
-  display: none;
+  opacity: 0;
+  pointer-events: none;
 }
 
 /* Remove button override for saved entries */
