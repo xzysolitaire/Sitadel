@@ -27,8 +27,9 @@ const filterTypeSelect = document.getElementById("filter-type-select");
 const toreadSectionsEl = document.getElementById("toread-sections");
 const toreadEmptyState = document.getElementById("toread-empty-state");
 const toreadBadge = document.getElementById("toread-badge");
-const openListArea = document.getElementById("open-list-area");
-const openListPickerEl = document.getElementById("open-list-picker");
+const curateBtn = document.getElementById("curate-btn");
+const curateActions = document.getElementById("curate-actions");
+const curateCancelBtn = document.getElementById("curate-cancel-btn");
 const openListBtn = document.getElementById("open-list-btn");
 
 let savedEntries = [];
@@ -406,14 +407,18 @@ function syncSectionState(section, count) {
 function renderToReadList(entries) {
   if (!toreadSectionsEl) return;
 
+  // A re-render rebuilds every row from scratch, so any in-progress curate
+  // selection is gone — drop back to the idle state. Curate mode writes no
+  // storage, so this only fires for external (storage.onChanged) updates.
+  if (curating) exitCurateMode();
+
   // Only pages explicitly added to the readlist appear here; plain saved
   // pages live in the Saved tab alone.
   const listed = entries.filter(isOnReadlist);
-  const deadlinedCount = listed.filter((p) => p.readBy != null).length;
   const previousUrls = renderedToReadUrls;
   renderedToReadUrls = new Set(listed.map((p) => p.url));
 
-  updateToReadChrome(listed.length, deadlinedCount);
+  updateToReadChrome(listed.length);
   toreadSectionsEl.textContent = "";
 
   // Nothing on the readlist — leave the empty state to carry the message.
@@ -434,18 +439,15 @@ function renderToReadList(entries) {
   }
 }
 
-// Badge and empty state track all readlist items; Open List tracks deadlined
-// ones (the reading-session picker is deadline-ordered).
-function updateToReadChrome(listedCount, deadlinedCount) {
+// Badge and empty state track all readlist items; the Curate list button is
+// enabled whenever there's at least one page to curate.
+function updateToReadChrome(listedCount) {
   if (toreadBadge) {
     toreadBadge.textContent = listedCount;
     toreadBadge.classList.toggle("hidden", listedCount === 0);
   }
   toreadEmptyState.style.display = listedCount === 0 ? "block" : "none";
-  if (openListArea) {
-    openListArea.classList.toggle("hidden", deadlinedCount === 0);
-    if (deadlinedCount === 0) closeOpenListPicker();
-  }
+  if (curateBtn) curateBtn.disabled = listedCount === 0;
 }
 
 function updateSectionCount(section) {
@@ -473,8 +475,7 @@ function removeToReadRow(url) {
   const listed = savedEntries.filter(isOnReadlist);
   if (listed.length === 0) toreadSectionsEl.textContent = "";
 
-  const deadlinedCount = listed.filter((p) => p.readBy != null).length;
-  updateToReadChrome(listed.length, deadlinedCount);
+  updateToReadChrome(listed.length);
 }
 
 function buildToReadItem(entry, sectionKey, isNew) {
@@ -568,6 +569,13 @@ function buildToReadItem(entry, sectionKey, isNew) {
   });
   actions.appendChild(removeBtn);
 
+  // Selection checkbox for curate mode — hidden by CSS until the tab is curating.
+  const check = document.createElement("input");
+  check.type = "checkbox";
+  check.className = "toread-check";
+  check.addEventListener("change", updateOpenListEnabled);
+
+  li.appendChild(check);
   li.appendChild(faviconWrap);
   li.appendChild(link);
   li.appendChild(actions);
@@ -685,71 +693,48 @@ async function removeDeadline(url) {
   renderSavedList(savedEntries);
 }
 
-function openOpenListPicker() {
-  const toread = savedEntries
-    .filter((p) => p.readBy != null)
-    .sort((a, b) => a.readBy - b.readBy);
-  const imminent = new Set(computeImminentSet(toread).map((p) => p.url));
+// ── Curate list ──
+// A two-step reading-session picker. Step 1 (Curate list) reveals a checkbox on
+// every readlist row and hides the per-row actions; Step 2 (Open list) opens the
+// checked pages in a new window. Cancel reverts to the normal list.
+let curating = false;
 
-  openListPickerEl.textContent = "";
-
-  const list = document.createElement("ul");
-  list.className = "open-list-choices";
-  for (const entry of toread) {
-    const li = document.createElement("li");
-    const label = document.createElement("label");
-    const checkbox = document.createElement("input");
-    checkbox.type = "checkbox";
-    checkbox.value = entry.url;
-    checkbox.checked = imminent.has(entry.url);
-    checkbox.addEventListener("change", updateOpenSelectedLabel);
-    const title = document.createElement("span");
-    title.textContent = entry.title || humaniseSite(entry.site);
-    label.appendChild(checkbox);
-    label.appendChild(title);
-    li.appendChild(label);
-    list.appendChild(li);
+function enterCurateMode() {
+  if (!toreadSectionsEl || curateBtn.disabled) return;
+  curating = true;
+  toreadSectionsEl.classList.add("curating");
+  // Pre-select the urgent buckets: Past due + Within one week.
+  for (const row of toreadSectionsEl.querySelectorAll(".toread-entry")) {
+    const key = row.closest(".toread-section")?.dataset.sectionKey;
+    const cb = row.querySelector(".toread-check");
+    if (cb) cb.checked = key === "pastdue" || key === "week";
   }
-  openListPickerEl.appendChild(list);
-
-  const row = document.createElement("div");
-  row.className = "open-list-confirm-row";
-
-  const confirmBtn = document.createElement("button");
-  confirmBtn.id = "open-selected-btn";
-  confirmBtn.className = "btn btn-open-list";
-  confirmBtn.addEventListener("click", async () => {
-    const urls = [...openListPickerEl.querySelectorAll("input:checked")].map((c) => c.value);
-    if (urls.length > 0) await chrome.windows.create({ url: urls });
-    closeOpenListPicker();
-  });
-
-  const cancelLink = document.createElement("button");
-  cancelLink.className = "open-list-cancel";
-  cancelLink.textContent = "Cancel";
-  cancelLink.addEventListener("click", closeOpenListPicker);
-
-  row.appendChild(confirmBtn);
-  row.appendChild(cancelLink);
-  openListPickerEl.appendChild(row);
-
-  updateOpenSelectedLabel();
-  openListPickerEl.classList.remove("hidden");
+  curateBtn.classList.add("hidden");
+  curateActions.classList.remove("hidden");
+  updateOpenListEnabled();
 }
 
-function updateOpenSelectedLabel() {
-  const count = openListPickerEl.querySelectorAll("input:checked").length;
-  const btn = openListPickerEl.querySelector("#open-selected-btn");
-  if (btn) btn.textContent = `Open Selected (${count})`;
+function exitCurateMode() {
+  curating = false;
+  toreadSectionsEl?.classList.remove("curating");
+  curateActions?.classList.add("hidden");
+  curateBtn?.classList.remove("hidden");
 }
 
-function closeOpenListPicker() {
-  if (!openListPickerEl) return;
-  openListPickerEl.textContent = "";
-  openListPickerEl.classList.add("hidden");
+function updateOpenListEnabled() {
+  if (!openListBtn) return;
+  openListBtn.disabled =
+    toreadSectionsEl.querySelectorAll(".toread-check:checked").length === 0;
 }
 
-openListBtn?.addEventListener("click", openOpenListPicker);
+curateBtn?.addEventListener("click", enterCurateMode);
+curateCancelBtn?.addEventListener("click", exitCurateMode);
+openListBtn?.addEventListener("click", async () => {
+  const urls = [...toreadSectionsEl.querySelectorAll(".toread-check:checked")]
+    .map((cb) => cb.closest(".toread-entry").dataset.url);
+  if (urls.length > 0) await chrome.windows.create({ url: urls });
+  exitCurateMode();
+});
 
 async function setPageDeadline(url, option) {
   const readBy = deadlineFromOption(option);

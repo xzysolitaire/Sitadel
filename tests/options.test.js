@@ -12,9 +12,12 @@ const OPTIONS_DOM = `
   <div id="tab-toread" class="tab-panel hidden">
     <div id="toread-sections"></div>
     <div id="toread-empty-state" class="empty-state">No pages with a read-by deadline yet.</div>
-    <div id="open-list-area" class="open-list-area hidden">
-      <div id="open-list-picker" class="open-list-picker hidden"></div>
-      <button id="open-list-btn">Open List</button>
+    <div id="curate-area" class="curate-area">
+      <button id="curate-btn" class="btn btn-curate"><span>Curate list</span></button>
+      <div id="curate-actions" class="curate-actions hidden">
+        <button id="open-list-btn" class="btn btn-curate">Open list</button>
+        <button id="curate-cancel-btn" class="curate-cancel">Cancel</button>
+      </div>
     </div>
     <input type="checkbox" id="unsave-on-remove-toggle" />
   </div>
@@ -1574,13 +1577,20 @@ describe('unsave on readlist removal setting', () => {
 
 // ─── Open List ───────────────────────────────────────────────────────────────
 
-describe('Open List', () => {
-  // 8 TO READ entries with ascending deadlines: u1 overdue, the rest spread out
+describe('Curate list', () => {
+  // 8 TO READ entries with ascending deadlines: u1 overdue, the rest spread out.
+  // Default selection = Past due + Within one week = u1 (overdue), u2/u3/u4 (1/2/4 days).
   const entries = [
     toreadEntry('u1', Date.now() - 2 * DAY_MS),
     ...[1, 2, 4, 8, 12, 20, 40].map((d, i) => toreadEntry(`u${i + 2}`, Date.now() + d * DAY_MS)),
     { url: 'plain', site: 'x.com', pageType: 'article', savedAt: 1 },
   ];
+  const DEFAULT_CHECKED = ['u1', 'u2', 'u3', 'u4'];
+
+  const sections = () => document.getElementById('toread-sections');
+  const checkboxes = () => [...sections().querySelectorAll('.toread-check')];
+  const checkedUrls = () =>
+    checkboxes().filter((c) => c.checked).map((c) => c.closest('.toread-entry').dataset.url);
 
   beforeEach(async () => {
     document.body.innerHTML = OPTIONS_DOM;
@@ -1590,59 +1600,62 @@ describe('Open List', () => {
     await flushPromises();
   });
 
-  test('Open List area is visible when TO READ items exist', () => {
-    expect(document.getElementById('open-list-area').classList.contains('hidden')).toBe(false);
+  test('Curate list button is enabled when readlist items exist', () => {
+    expect(document.getElementById('curate-btn').disabled).toBe(false);
   });
 
-  test('clicking Open List lists all TO READ items with the imminent set pre-checked', () => {
-    document.getElementById('open-list-btn').click();
-
-    const checkboxes = [...document.querySelectorAll('#open-list-picker input[type="checkbox"]')];
-    expect(checkboxes).toHaveLength(8);
-    const checked = checkboxes.filter((c) => c.checked).map((c) => c.value);
-    expect(checked).toEqual(['u1', 'u2', 'u3', 'u4', 'u5', 'u6']);
-  });
-
-  test('confirm button label shows the selected count and updates on change', () => {
-    document.getElementById('open-list-btn').click();
-
-    const confirmBtn = document.getElementById('open-selected-btn');
-    expect(confirmBtn.textContent).toBe('Open Selected (6)');
-
-    const firstChecked = document.querySelector('#open-list-picker input:checked');
-    firstChecked.checked = false;
-    firstChecked.dispatchEvent(new Event('change'));
-
-    expect(confirmBtn.textContent).toBe('Open Selected (5)');
-  });
-
-  test('confirm opens a new window with the selected URLs and closes the picker', async () => {
-    document.getElementById('open-list-btn').click();
-    document.getElementById('open-selected-btn').click();
-    await flushPromises();
-
-    expect(chrome.windows.create).toHaveBeenCalledWith({
-      url: ['u1', 'u2', 'u3', 'u4', 'u5', 'u6'],
-    });
-    expect(document.getElementById('open-list-picker').classList.contains('hidden')).toBe(true);
-    expect(chrome.storage.sync.set).not.toHaveBeenCalled();
-  });
-
-  test('Cancel closes the picker without opening a window', () => {
-    document.getElementById('open-list-btn').click();
-    document.querySelector('.open-list-cancel').click();
-
-    expect(chrome.windows.create).not.toHaveBeenCalled();
-    expect(document.getElementById('open-list-picker').classList.contains('hidden')).toBe(true);
-  });
-
-  test('Open List area is hidden when no TO READ items exist', async () => {
+  test('Curate list button is disabled when the readlist is empty', async () => {
     document.body.innerHTML = OPTIONS_DOM;
     chrome.storage.sync.get.mockResolvedValue({ blockedSites: [], savedPages: [] });
     jest.resetModules();
     require('../options');
     await flushPromises();
 
-    expect(document.getElementById('open-list-area').classList.contains('hidden')).toBe(true);
+    expect(document.getElementById('curate-btn').disabled).toBe(true);
+  });
+
+  test('clicking Curate list enters curate mode with Past due + Within one week pre-checked', () => {
+    document.getElementById('curate-btn').click();
+
+    expect(sections().classList.contains('curating')).toBe(true);
+    expect(checkboxes()).toHaveLength(8);
+    expect(checkedUrls()).toEqual(DEFAULT_CHECKED);
+    // Button row swaps to Open list + Cancel.
+    expect(document.getElementById('curate-btn').classList.contains('hidden')).toBe(true);
+    expect(document.getElementById('curate-actions').classList.contains('hidden')).toBe(false);
+  });
+
+  test('Open list is disabled when nothing is selected, enabled otherwise', () => {
+    document.getElementById('curate-btn').click();
+    expect(document.getElementById('open-list-btn').disabled).toBe(false);
+
+    for (const cb of checkboxes()) {
+      if (cb.checked) {
+        cb.checked = false;
+        cb.dispatchEvent(new Event('change'));
+      }
+    }
+    expect(document.getElementById('open-list-btn').disabled).toBe(true);
+  });
+
+  test('Cancel reverts to the normal list', () => {
+    document.getElementById('curate-btn').click();
+    document.getElementById('curate-cancel-btn').click();
+
+    expect(sections().classList.contains('curating')).toBe(false);
+    expect(document.getElementById('curate-btn').classList.contains('hidden')).toBe(false);
+    expect(document.getElementById('curate-actions').classList.contains('hidden')).toBe(true);
+    expect(chrome.windows.create).not.toHaveBeenCalled();
+  });
+
+  test('Open list opens a window with the selected URLs and exits curate mode', async () => {
+    document.getElementById('curate-btn').click();
+    document.getElementById('open-list-btn').click();
+    await flushPromises();
+
+    expect(chrome.windows.create).toHaveBeenCalledWith({ url: DEFAULT_CHECKED });
+    expect(chrome.storage.sync.set).not.toHaveBeenCalled();
+    expect(sections().classList.contains('curating')).toBe(false);
+    expect(document.getElementById('curate-actions').classList.contains('hidden')).toBe(true);
   });
 });
