@@ -723,8 +723,9 @@ function exitCurateMode() {
 
 function updateOpenListEnabled() {
   if (!openListBtn) return;
-  openListBtn.disabled =
-    toreadSectionsEl.querySelectorAll(".toread-check:checked").length === 0;
+  const count = toreadSectionsEl.querySelectorAll(".toread-check:checked").length;
+  openListBtn.disabled = count === 0;
+  openListBtn.textContent = `Open list (${count})`;
 }
 
 curateBtn?.addEventListener("click", enterCurateMode);

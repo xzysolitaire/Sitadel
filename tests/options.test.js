@@ -1625,9 +1625,11 @@ describe('Curate list', () => {
     expect(document.getElementById('curate-actions').classList.contains('hidden')).toBe(false);
   });
 
-  test('Open list is disabled when nothing is selected, enabled otherwise', () => {
+  test('Open list shows the selected count, disabling at zero', () => {
     document.getElementById('curate-btn').click();
-    expect(document.getElementById('open-list-btn').disabled).toBe(false);
+    const openBtn = document.getElementById('open-list-btn');
+    expect(openBtn.disabled).toBe(false);
+    expect(openBtn.textContent).toBe(`Open list (${DEFAULT_CHECKED.length})`);
 
     for (const cb of checkboxes()) {
       if (cb.checked) {
@@ -1635,7 +1637,8 @@ describe('Curate list', () => {
         cb.dispatchEvent(new Event('change'));
       }
     }
-    expect(document.getElementById('open-list-btn').disabled).toBe(true);
+    expect(openBtn.disabled).toBe(true);
+    expect(openBtn.textContent).toBe('Open list (0)');
   });
 
   test('Cancel reverts to the normal list', () => {
