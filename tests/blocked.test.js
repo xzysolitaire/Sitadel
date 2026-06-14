@@ -8,7 +8,6 @@ const BLOCKED_DOM = `
   <div id="toread-section" hidden>
     <h2>Your reading list</h2>
     <ul id="toread-list"></ul>
-    <div id="open-list-picker" hidden></div>
     <button id="open-list-btn">Open List</button>
   </div>
 `;
@@ -100,45 +99,22 @@ describe('blocked page Open List', () => {
     ...[1, 2, 4, 8, 12, 20, 40].map((d, i) => toreadEntry(`u${i + 1}`, Date.now() + d * DAY_MS)),
   ];
 
-  beforeEach(async () => {
+  test('opens the presented list (top 6) directly in a new window, no selection step', async () => {
     await setupBlocked(entries);
     document.getElementById('open-list-btn').click();
-  });
-
-  test('lists all TO READ items with the imminent set pre-checked', () => {
-    const checkboxes = [...document.querySelectorAll('#open-list-picker input[type="checkbox"]')];
-    expect(checkboxes).toHaveLength(8);
-
-    const checked = checkboxes.filter((c) => c.checked).map((c) => c.value);
-    expect(checked).toEqual(['overdue', 'u1', 'u2', 'u3', 'u4', 'u5']);
-  });
-
-  test('confirm label shows the selected count and updates on change', () => {
-    const confirmBtn = document.getElementById('open-selected-btn');
-    expect(confirmBtn.textContent).toBe('Open Selected (6)');
-
-    const firstChecked = document.querySelector('#open-list-picker input:checked');
-    firstChecked.checked = false;
-    firstChecked.dispatchEvent(new Event('change'));
-
-    expect(confirmBtn.textContent).toBe('Open Selected (5)');
-  });
-
-  test('confirm opens a new window with the selected URLs and closes the picker', async () => {
-    document.getElementById('open-selected-btn').click();
     await flushPromises();
 
     expect(chrome.windows.create).toHaveBeenCalledWith({
       url: ['overdue', 'u1', 'u2', 'u3', 'u4', 'u5'],
     });
-    expect(document.getElementById('open-list-picker').hidden).toBe(true);
     expect(chrome.storage.sync.set).not.toHaveBeenCalled();
   });
 
-  test('Cancel dismisses the picker without opening a window', () => {
-    document.querySelector('.open-list-cancel').click();
+  test('does not open a window when there is nothing to read', async () => {
+    await setupBlocked([]);
+    document.getElementById('open-list-btn').click();
+    await flushPromises();
 
     expect(chrome.windows.create).not.toHaveBeenCalled();
-    expect(document.getElementById('open-list-picker').hidden).toBe(true);
   });
 });
