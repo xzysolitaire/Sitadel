@@ -2,11 +2,13 @@ const STORAGE_KEY = "blockedSites";
 
 function buildUrlFilter(pattern) {
   // pattern examples: "facebook.com", "reddit.com/r/news"
-  const hasPath = pattern.includes("/");
-  if (hasPath) {
-    return [`*://${pattern}*`, `*://www.${pattern}*`];
-  }
-  return [`*://${pattern}/*`, `*://www.${pattern}/*`];
+  // Lowercase: request URL hosts are always lowercase and DNR matches the
+  // urlFilter against them, so a mixed/upper-case entry would never match.
+  const p = pattern.toLowerCase();
+  // `||` anchors at a domain-label boundary, so one filter covers the bare
+  // host, www, and any other subdomain across http/https. For a domain-only
+  // entry the trailing `/` matches the homepage and every path beneath it.
+  return p.includes("/") ? [`||${p}`] : [`||${p}/`];
 }
 
 // entries: Array<{site: string, blockedAt: number}>
@@ -34,6 +36,7 @@ async function syncRules(entries) {
           },
           condition: {
             urlFilter,
+            isUrlFilterCaseSensitive: false,
             resourceTypes: ["main_frame", "sub_frame"],
           },
         });

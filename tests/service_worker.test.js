@@ -10,18 +10,16 @@ beforeEach(() => {
 // ─── buildUrlFilter ───────────────────────────────────────────────────────────
 
 describe('buildUrlFilter', () => {
-  test('domain only — returns two wildcard patterns', () => {
-    expect(buildUrlFilter('facebook.com')).toEqual([
-      '*://facebook.com/*',
-      '*://www.facebook.com/*',
-    ]);
+  test('domain only — one domain-anchored filter covering all subdomains', () => {
+    expect(buildUrlFilter('facebook.com')).toEqual(['||facebook.com/']);
   });
 
-  test('domain with path — uses prefix wildcard instead of /* suffix', () => {
-    expect(buildUrlFilter('reddit.com/r/news')).toEqual([
-      '*://reddit.com/r/news*',
-      '*://www.reddit.com/r/news*',
-    ]);
+  test('domain with path — domain-anchored filter with the path', () => {
+    expect(buildUrlFilter('reddit.com/r/news')).toEqual(['||reddit.com/r/news']);
+  });
+
+  test('lowercases the pattern so mixed-case entries still match', () => {
+    expect(buildUrlFilter('4KHD.COM')).toEqual(['||4khd.com/']);
   });
 });
 
@@ -63,7 +61,7 @@ describe('syncRules', () => {
 
     const call = chrome.declarativeNetRequest.updateDynamicRules.mock.calls[0][0];
     expect(call.removeRuleIds).toEqual([1, 2]);
-    expect(call.addRules).toHaveLength(2); // one per filter pattern
+    expect(call.addRules).toHaveLength(1); // one filter per entry
     expect(call.addRules[0]).toMatchObject({
       id: 1,
       priority: 1,
@@ -72,7 +70,8 @@ describe('syncRules', () => {
         redirect: { url: expect.stringContaining('blocked.html?site=facebook.com') },
       },
       condition: {
-        urlFilter: '*://facebook.com/*',
+        urlFilter: '||facebook.com/',
+        isUrlFilterCaseSensitive: false,
         resourceTypes: ['main_frame', 'sub_frame'],
       },
     });
@@ -96,7 +95,7 @@ describe('syncRules', () => {
     ]);
 
     const { addRules } = chrome.declarativeNetRequest.updateDynamicRules.mock.calls[0][0];
-    expect(addRules.map((r) => r.id)).toEqual([1, 2, 3, 4]);
+    expect(addRules.map((r) => r.id)).toEqual([1, 2]);
   });
 
   test('redirect URL encodes the site name', async () => {
