@@ -414,7 +414,6 @@ select {
   gap: 12px;
   padding: 13px 0;
   border-bottom: 1px solid #f2f2f2;
-  animation: fadeIn 0.15s ease;
 }
 
 .saved-entry:last-child {
