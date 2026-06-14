@@ -71,23 +71,34 @@ describe('blocked page TO READ section', () => {
     expect(document.querySelector('#toread-list a')).toBeNull();
   });
 
-  test('meta line shows site and deadline date', async () => {
-    const readBy = new Date('2026-06-15T12:00:00').getTime();
-    await setupBlocked([toreadEntry('a', readBy)]);
-
-    expect(document.querySelector('.toread-meta').textContent).toBe('Github · Jun 15, 2026');
-  });
-
-  test('overdue items show an overdue label', async () => {
-    await setupBlocked([toreadEntry('a', Date.now() - 3 * DAY_MS)]);
-
-    expect(document.querySelector('.toread-overdue').textContent).toMatch(/3 days overdue/);
-  });
-
-  test('non-overdue items have no overdue label', async () => {
+  test('each row shows the site favicon', async () => {
     await setupBlocked([toreadEntry('a', Date.now() + DAY_MS)]);
 
-    expect(document.querySelector('.toread-overdue')).toBeNull();
+    const img = document.querySelector('.toread-item .favicon-wrap img');
+    expect(img).not.toBeNull();
+    expect(img.src).toContain('s2/favicons?domain=github.com');
+  });
+
+  test('meta line shows the site name', async () => {
+    await setupBlocked([toreadEntry('a', Date.now() + DAY_MS)]);
+
+    expect(document.querySelector('.toread-meta').textContent).toBe('Github');
+  });
+
+  test('a due item shows a blue "Due in N days" chip', async () => {
+    await setupBlocked([toreadEntry('a', Date.now() + 4 * DAY_MS)]);
+
+    const chip = document.querySelector('.toread-chip');
+    expect(chip.textContent).toBe('Due in 4 days');
+    expect(chip.classList.contains('over')).toBe(false);
+  });
+
+  test('an overdue item shows an orange overdue chip', async () => {
+    await setupBlocked([toreadEntry('a', Date.now() - 3 * DAY_MS)]);
+
+    const chip = document.querySelector('.toread-chip');
+    expect(chip.textContent).toMatch(/3 days overdue/);
+    expect(chip.classList.contains('over')).toBe(true);
   });
 });
 
@@ -116,5 +127,14 @@ describe('blocked page Open List', () => {
     await flushPromises();
 
     expect(chrome.windows.create).not.toHaveBeenCalled();
+  });
+
+  test('the whole Open List section stays hidden when nothing is due (only the top section shows)', async () => {
+    await setupBlocked([{ url: 'plain', site: 'x.com', pageType: 'article', savedAt: 1 }]);
+
+    const section = document.getElementById('toread-section');
+    expect(section.hidden).toBe(true);
+    // The Open List button lives inside that section, so it's hidden too.
+    expect(document.getElementById('open-list-btn').closest('#toread-section')).toBe(section);
   });
 });

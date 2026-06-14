@@ -31,30 +31,45 @@ async function initToRead() {
   const presented = computeImminentSet(toreadEntries);
   presentedUrls = presented.map((p) => p.url);
 
+  const dayMs = 24 * 60 * 60 * 1000;
   toreadListEl.textContent = "";
   for (const entry of presented) {
     const li = document.createElement("li");
     li.className = "toread-item";
 
+    const favWrap = document.createElement("div");
+    favWrap.className = "favicon-wrap";
+    const img = document.createElement("img");
+    img.src = `https://www.google.com/s2/favicons?domain=${entry.site}&sz=32`;
+    img.alt = "";
+    favWrap.appendChild(img);
+
+    const text = document.createElement("div");
+    text.className = "toread-text";
     const title = document.createElement("div");
     title.className = "toread-title";
     title.textContent = entry.title || humaniseSite(entry.site);
-
     const meta = document.createElement("div");
     meta.className = "toread-meta";
-    meta.textContent = `${humaniseSite(entry.site)} · ${formatDeadlineDate(entry.readBy)}`;
+    meta.textContent = humaniseSite(entry.site);
+    text.appendChild(title);
+    text.appendChild(meta);
 
-    li.appendChild(title);
-    li.appendChild(meta);
-
+    // Due-days chip, matching the Readlist tab: orange when overdue, blue otherwise.
+    const chip = document.createElement("span");
+    chip.className = "toread-chip";
     if (getDeadlineSection(entry.readBy) === "pastdue") {
       const days = daysOverdue(entry.readBy);
-      const overdue = document.createElement("div");
-      overdue.className = "toread-overdue";
-      overdue.textContent = `${days} ${days === 1 ? "day" : "days"} overdue`;
-      li.appendChild(overdue);
+      chip.classList.add("over");
+      chip.textContent = `${days} ${days === 1 ? "day" : "days"} overdue`;
+    } else {
+      const daysLeft = Math.ceil((entry.readBy - Date.now()) / dayMs);
+      chip.textContent = daysLeft <= 0 ? "Due today" : `Due in ${daysLeft} ${daysLeft === 1 ? "day" : "days"}`;
     }
 
+    li.appendChild(favWrap);
+    li.appendChild(text);
+    li.appendChild(chip);
     toreadListEl.appendChild(li);
   }
 
