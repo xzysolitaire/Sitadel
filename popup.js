@@ -323,6 +323,18 @@ blockBtn.addEventListener("click", async () => {
   siteBlocked = true;
   updateSecondaryButton(false);
   showFeedback(`Blocked ${currentHostname}`, "success");
+
+  // After a short beat, send the tab to the blocked page (the redirect rule
+  // only fires on the next request) and dismiss the popup. Navigating the tab
+  // closes the popup on its own, so both happen together at the 2s mark.
+  setTimeout(() => {
+    if (currentTab?.id != null) {
+      chrome.tabs.update(currentTab.id, {
+        url: chrome.runtime.getURL(`blocked.html?site=${encodeURIComponent(currentHostname)}`),
+      });
+    }
+    window.close();
+  }, 2000);
 });
 
 optionsBtn.addEventListener("click", () => {

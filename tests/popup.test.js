@@ -440,6 +440,41 @@ describe('block button', () => {
     expect(chrome.storage.sync.set).not.toHaveBeenCalled();
     expect(document.getElementById('feedback').classList.contains('hidden')).toBe(false);
   });
+
+  test('navigates the current tab to the blocked page only after the 2s delay', async () => {
+    // window.close() destroys the jsdom window, so stub it for this test too.
+    const closeSpy = jest.spyOn(window, 'close').mockImplementation(() => {});
+    jest.useFakeTimers();
+
+    chrome.storage.sync.get.mockResolvedValue({ blockedSites: [] });
+    document.getElementById('block-btn').click();
+    await flushMicrotasks();
+
+    expect(chrome.tabs.update).not.toHaveBeenCalled();
+    jest.advanceTimersByTime(2000);
+    expect(chrome.tabs.update).toHaveBeenCalledWith(1, {
+      url: 'chrome-extension://fakeid/blocked.html?site=twitter.com',
+    });
+
+    jest.useRealTimers();
+    closeSpy.mockRestore();
+  });
+
+  test('auto-dismisses the popup ~2s after blocking', async () => {
+    const closeSpy = jest.spyOn(window, 'close').mockImplementation(() => {});
+    jest.useFakeTimers();
+
+    chrome.storage.sync.get.mockResolvedValue({ blockedSites: [] });
+    document.getElementById('block-btn').click();
+    await flushMicrotasks();
+
+    expect(closeSpy).not.toHaveBeenCalled();
+    jest.advanceTimersByTime(2000);
+    expect(closeSpy).toHaveBeenCalled();
+
+    jest.useRealTimers();
+    closeSpy.mockRestore();
+  });
 });
 
 // ─── readlist: undo flow ─────────────────────────────────────────────────────
