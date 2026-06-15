@@ -60,23 +60,60 @@ function migrate(raw) {
   );
 }
 
+// Does an http(s) URL fall under a blocked entry? Matches the bare domain and
+// any subdomain (www, m, mobile, …); for path entries, the path must prefix-match.
+function urlMatchesSite(url, site) {
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return false;
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return false;
+  const bare = parsed.hostname.replace(/^www\./, "");
+  const s = site.toLowerCase();
+  if (s.includes("/")) {
+    const slash = s.indexOf("/");
+    const host = s.slice(0, slash);
+    return (bare === host || bare.endsWith("." + host)) && parsed.pathname.startsWith(s.slice(slash));
+  }
+  return bare === s || bare.endsWith("." + s);
+}
+
 async function clearHistoryForSite(site) {
   const results = await chrome.history.search({ text: site, maxResults: 1000, startTime: 0 });
-  const toDelete = results.filter(({ url }) => {
-    try {
-      const { hostname, pathname } = new URL(url);
-      const bare = hostname.replace(/^www\./, "");
-      if (site.includes("/")) {
-        const slash = site.indexOf("/");
-        return bare === site.slice(0, slash) && pathname.startsWith(site.slice(slash));
-      }
-      return bare === site || bare.endsWith("." + site);
-    } catch {
-      return false;
-    }
-  });
+  const toDelete = results.filter(({ url }) => urlMatchesSite(url, site));
   await Promise.all(toDelete.map(({ url }) => chrome.history.deleteUrl({ url })));
 }
+
+// In-memory cache of the block list, kept fresh by the storage listener below.
+// Reloaded lazily after the service worker restarts.
+let blockedCache = null;
+async function getBlockedEntries() {
+  if (blockedCache === null) {
+    const { [STORAGE_KEY]: entries = [] } = await chrome.storage.sync.get(STORAGE_KEY);
+    blockedCache = entries;
+  }
+  return blockedCache;
+}
+
+// declarativeNetRequest only catches real network navigations. Single-page apps
+// (e.g. x.com) change URL client-side and serve from a service worker, so a
+// blocked page can stay visible. Catch those by redirecting any tab whose URL
+// lands on a blocked site — tabs.onUpdated fires on SPA history changes too.
+async function enforceBlockOnTab(tabId, url) {
+  const entries = await getBlockedEntries();
+  const hit = entries.find((e) => urlMatchesSite(url, e.site));
+  if (hit) {
+    chrome.tabs.update(tabId, {
+      url: chrome.runtime.getURL(`blocked.html?site=${encodeURIComponent(hit.site)}`),
+    });
+  }
+}
+
+chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+  if (changeInfo.url) enforceBlockOnTab(tabId, changeInfo.url);
+});
 
 chrome.runtime.onInstalled.addListener(async () => {
   try {
@@ -103,6 +140,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== "sync" || !changes[STORAGE_KEY]) return;
 
   const { newValue = [], oldValue = [] } = changes[STORAGE_KEY];
+  blockedCache = newValue; // keep tab-enforcement in sync
 
   const added = newValue.filter((n) => !oldValue.some((o) => o.site === n.site));
   if (added.length > 0) {
@@ -118,5 +156,5 @@ chrome.storage.onChanged.addListener((changes, area) => {
 });
 
 if (typeof module !== "undefined") {
-  module.exports = { buildUrlFilter, syncRules, migrate, clearHistoryForSite };
+  module.exports = { buildUrlFilter, syncRules, migrate, clearHistoryForSite, urlMatchesSite, enforceBlockOnTab };
 }

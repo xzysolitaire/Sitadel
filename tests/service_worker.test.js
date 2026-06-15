@@ -1,10 +1,11 @@
 const flushPromises = () => new Promise((r) => setImmediate(r));
 
-let buildUrlFilter, syncRules, migrate, clearHistoryForSite;
+let buildUrlFilter, syncRules, migrate, clearHistoryForSite, urlMatchesSite, enforceBlockOnTab;
 
 beforeEach(() => {
   jest.resetModules();
-  ({ buildUrlFilter, syncRules, migrate, clearHistoryForSite } = require('../service_worker'));
+  ({ buildUrlFilter, syncRules, migrate, clearHistoryForSite, urlMatchesSite, enforceBlockOnTab } =
+    require('../service_worker'));
 });
 
 // ─── buildUrlFilter ───────────────────────────────────────────────────────────
@@ -358,5 +359,68 @@ describe('storage.onChanged history clearing', () => {
     await flushPromises();
 
     expect(chrome.history.search).not.toHaveBeenCalled();
+  });
+});
+
+// ─── urlMatchesSite ───────────────────────────────────────────────────────────
+
+describe('urlMatchesSite', () => {
+  test('matches the bare domain and subdomains (www, m, mobile)', () => {
+    expect(urlMatchesSite('https://x.com/home', 'x.com')).toBe(true);
+    expect(urlMatchesSite('https://www.x.com/home', 'x.com')).toBe(true);
+    expect(urlMatchesSite('https://mobile.x.com/x', 'x.com')).toBe(true);
+  });
+
+  test('does not match look-alike or suffix domains', () => {
+    expect(urlMatchesSite('https://notx.com/', 'x.com')).toBe(false);
+    expect(urlMatchesSite('https://x.com.evil.com/', 'x.com')).toBe(false);
+  });
+
+  test('path entries require a path prefix match', () => {
+    expect(urlMatchesSite('https://reddit.com/r/news/abc', 'reddit.com/r/news')).toBe(true);
+    expect(urlMatchesSite('https://reddit.com/r/other', 'reddit.com/r/news')).toBe(false);
+  });
+
+  test('is case-insensitive on the stored site and ignores non-http(s) / invalid URLs', () => {
+    expect(urlMatchesSite('https://x.com/home', 'X.COM')).toBe(true);
+    expect(urlMatchesSite('chrome://settings', 'settings')).toBe(false);
+    expect(urlMatchesSite('not-a-url', 'x.com')).toBe(false);
+  });
+});
+
+// ─── tab-level enforcement (SPA / already-open tabs) ──────────────────────────
+
+describe('enforceBlockOnTab', () => {
+  test('redirects a tab whose URL lands on a blocked site', async () => {
+    chrome.storage.sync.get.mockResolvedValue({ blockedSites: [{ site: 'x.com', blockedAt: 0 }] });
+
+    await enforceBlockOnTab(7, 'https://x.com/home');
+
+    expect(chrome.tabs.update).toHaveBeenCalledWith(7, {
+      url: expect.stringContaining('blocked.html?site=x.com'),
+    });
+  });
+
+  test('leaves non-blocked tabs alone', async () => {
+    chrome.storage.sync.get.mockResolvedValue({ blockedSites: [{ site: 'x.com', blockedAt: 0 }] });
+
+    await enforceBlockOnTab(7, 'https://example.com/');
+
+    expect(chrome.tabs.update).not.toHaveBeenCalled();
+  });
+
+  test('the tabs.onUpdated listener enforces only on URL changes', async () => {
+    chrome.storage.sync.get.mockResolvedValue({ blockedSites: [{ site: 'x.com', blockedAt: 0 }] });
+    const listener = chrome.tabs.onUpdated.addListener.mock.calls[0][0];
+
+    listener(7, { status: 'loading' }); // no url change → ignored
+    await flushPromises();
+    expect(chrome.tabs.update).not.toHaveBeenCalled();
+
+    listener(7, { url: 'https://x.com/home' });
+    await flushPromises();
+    expect(chrome.tabs.update).toHaveBeenCalledWith(7, {
+      url: expect.stringContaining('blocked.html?site=x.com'),
+    });
   });
 });

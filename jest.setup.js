@@ -28,6 +28,7 @@ beforeEach(() => {
     tabs: {
       query: jest.fn(),
       update: jest.fn().mockResolvedValue({}),
+      onUpdated: { addListener: jest.fn() },
     },
     windows: {
       create: jest.fn().mockResolvedValue({}),
