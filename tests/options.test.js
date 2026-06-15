@@ -144,7 +144,7 @@ describe('addSite', () => {
     await flushPromises();
 
     expect(chrome.storage.sync.set).toHaveBeenCalledWith({
-      blockedSites: [{ site: 'reddit.com', blockedAt: expect.any(Number) }],
+      blockedSites: [{ site: 'reddit.com', blockedAt: expect.any(Number), cooldown: true }],
     });
   });
 
@@ -837,7 +837,7 @@ describe('unblockCooldown toggle', () => {
     expect(chrome.storage.sync.set).toHaveBeenCalledWith({ unblockCooldown: false });
   });
 
-  test('when cooldown is off, locked sites render with enabled Remove button', async () => {
+  test('legacy locked sites (no cooldown field) follow the current setting when off', async () => {
     const LOCKED_ENTRY = { site: 'twitter.com', blockedAt: Date.now() + 9999999 };
     document.body.innerHTML = OPTIONS_DOM;
     chrome.storage.sync.get.mockResolvedValue({ blockedSites: [LOCKED_ENTRY], unblockCooldown: false });
@@ -847,6 +847,32 @@ describe('unblockCooldown toggle', () => {
 
     const buttons = document.querySelectorAll('.remove-btn');
     expect([...buttons].every((b) => !b.disabled)).toBe(true);
+  });
+
+  test('a site blocked with cooldown on stays locked even after the setting is turned off', async () => {
+    const LOCKED_ENTRY = { site: 'twitter.com', blockedAt: Date.now() + 9999999, cooldown: true };
+    document.body.innerHTML = OPTIONS_DOM;
+    chrome.storage.sync.get.mockResolvedValue({ blockedSites: [LOCKED_ENTRY], unblockCooldown: false });
+    jest.resetModules();
+    require('../options');
+    await flushPromises();
+
+    const btn = document.querySelector('.remove-btn');
+    expect(btn.disabled).toBe(true);
+    expect(btn.textContent).toMatch(/days? left/);
+  });
+
+  test('a site blocked with cooldown off stays removable even after the setting is turned on', async () => {
+    const ENTRY = { site: 'twitter.com', blockedAt: Date.now() + 9999999, cooldown: false };
+    document.body.innerHTML = OPTIONS_DOM;
+    chrome.storage.sync.get.mockResolvedValue({ blockedSites: [ENTRY], unblockCooldown: true });
+    jest.resetModules();
+    require('../options');
+    await flushPromises();
+
+    const btn = document.querySelector('.remove-btn');
+    expect(btn.disabled).toBe(false);
+    expect(btn.textContent).toBe('Remove');
   });
 });
 

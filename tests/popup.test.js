@@ -410,13 +410,23 @@ describe('block button', () => {
     await flushPromises();
   });
 
-  test('saves {site, blockedAt} to storage when clicked', async () => {
-    chrome.storage.sync.get.mockResolvedValue({ blockedSites: [] });
+  test('saves {site, blockedAt, cooldown} to storage when clicked', async () => {
+    chrome.storage.sync.get.mockResolvedValue({ blockedSites: [], unblockCooldown: true });
     document.getElementById('block-btn').click();
     await flushPromises();
 
     expect(chrome.storage.sync.set).toHaveBeenCalledWith({
-      blockedSites: [{ site: 'twitter.com', blockedAt: expect.any(Number) }],
+      blockedSites: [{ site: 'twitter.com', blockedAt: expect.any(Number), cooldown: true }],
+    });
+  });
+
+  test('captures the cooldown setting as it was at block time', async () => {
+    chrome.storage.sync.get.mockResolvedValue({ blockedSites: [], unblockCooldown: false });
+    document.getElementById('block-btn').click();
+    await flushPromises();
+
+    expect(chrome.storage.sync.set).toHaveBeenCalledWith({
+      blockedSites: [{ site: 'twitter.com', blockedAt: expect.any(Number), cooldown: false }],
     });
   });
 

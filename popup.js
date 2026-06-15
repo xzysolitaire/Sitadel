@@ -313,12 +313,15 @@ blockBtn.addEventListener("click", async () => {
   }
 
   if (!currentHostname) return;
-  const { [STORAGE_KEY]: entries = [] } = await chrome.storage.sync.get(STORAGE_KEY);
+  const { [STORAGE_KEY]: entries = [], unblockCooldown = true } =
+    await chrome.storage.sync.get([STORAGE_KEY, "unblockCooldown"]);
   if (entries.some((e) => e.site === currentHostname)) {
     showFeedback("Already in block list", "error");
     return;
   }
-  const newEntry = { site: currentHostname, blockedAt: Date.now() };
+  // Capture the cooldown setting now so the lock reflects how it was at block
+  // time, not whatever the setting happens to be when the user tries to remove.
+  const newEntry = { site: currentHostname, blockedAt: Date.now(), cooldown: unblockCooldown };
   await chrome.storage.sync.set({ [STORAGE_KEY]: [...entries, newEntry] });
   siteBlocked = true;
   updateSecondaryButton(false);

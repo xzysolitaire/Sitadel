@@ -94,7 +94,12 @@ function renderList(entries) {
 
   for (const entry of entries) {
     const remaining = daysLeft(entry.blockedAt);
-    const locked = unblockCooldown && remaining > 0;
+    // Respect the cooldown setting as it was when the site was blocked, so
+    // toggling the setting off later can't unlock an already-locked site.
+    // Legacy entries (blocked before this was captured) fall back to the
+    // current setting.
+    const cooldownApplied = entry.cooldown ?? unblockCooldown;
+    const locked = cooldownApplied && remaining > 0;
 
     const li = document.createElement("li");
     li.className = "site-entry";
@@ -811,7 +816,7 @@ async function addSite() {
     return;
   }
 
-  const updated = [...entries, { site, blockedAt: Date.now() }];
+  const updated = [...entries, { site, blockedAt: Date.now(), cooldown: unblockCooldown }];
   await chrome.storage.sync.set({ [STORAGE_KEY]: updated });
   urlInput.value = "";
   renderList(updated);
