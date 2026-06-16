@@ -2,9 +2,10 @@ const STORAGE_KEY = "blockedSites";
 const SAVED_KEY = "savedPages";
 const LOCK_MS = 7 * 24 * 60 * 60 * 1000;
 
-// In the browser these helpers are globals loaded via <script src="readlist-utils.js">
+// In the browser these helpers are globals loaded via <script> tags
 if (typeof module !== "undefined") {
   Object.assign(globalThis, require("./readlist-utils.js"));
+  Object.assign(globalThis, require("./pageTypeDetector.js"));
 }
 
 const urlInput = document.getElementById("url-input");
@@ -23,6 +24,12 @@ const savedCountEl = document.getElementById("saved-count");
 const sortSelect = document.getElementById("sort-select");
 const filterSiteSelect = document.getElementById("filter-site-select");
 const filterTypeSelect = document.getElementById("filter-type-select");
+PAGE_TYPES.forEach((t) => {
+  const opt = document.createElement("option");
+  opt.value = t;
+  opt.textContent = t[0].toUpperCase() + t.slice(1);
+  filterTypeSelect.appendChild(opt);
+});
 
 const toreadSectionsEl = document.getElementById("toread-sections");
 const toreadEmptyState = document.getElementById("toread-empty-state");

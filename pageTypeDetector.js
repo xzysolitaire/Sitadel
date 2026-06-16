@@ -87,6 +87,8 @@ function detectPageType(url, doc) {
   return 'page';
 }
 
+const PAGE_TYPES = ['article', 'video', 'audio', 'paper', 'docs', 'course', 'page'];
+
 if (typeof module !== 'undefined') {
-  module.exports = { detectPageType };
+  module.exports = { detectPageType, PAGE_TYPES };
 }
