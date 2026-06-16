@@ -1,4 +1,5 @@
 const STORAGE_KEY = "blockedSites";
+const SAVED_KEY = "savedPages";
 
 function buildUrlFilter(pattern) {
   // pattern examples: "facebook.com", "reddit.com/r/news"
@@ -58,6 +59,30 @@ function migrate(raw) {
   return raw.map((entry) =>
     typeof entry === "string" ? { site: entry, blockedAt: 0 } : entry
   );
+}
+
+function isCourseUrl(url) {
+  if (
+    /coursera\.org\/learn\/|coursera\.org\/specializations\/|coursera\.org\/professional-certificates\//.test(url) ||
+    /udemy\.com\/course\//.test(url) ||
+    /edx\.org\/course\/|edx\.org\/learn\/|edx\.org\/professional-certificate\//.test(url) ||
+    /khanacademy\.org\/.+\/(unit|lesson|quiz|test|article|exercise)/.test(url) ||
+    /skillshare\.com\/(en\/)?classes\//.test(url) ||
+    /brilliant\.org\/(courses|daily-problems|practice)\//.test(url) ||
+    /pluralsight\.com\/courses\//.test(url) ||
+    /linkedin\.com\/learning\//.test(url)
+  ) return true;
+  try { return /\/courses?\//i.test(new URL(url).pathname); } catch { return false; }
+}
+
+async function migrateSavedPageTypes() {
+  const { [SAVED_KEY]: pages = [] } = await chrome.storage.sync.get(SAVED_KEY);
+  const updated = pages.map((p) =>
+    p.pageType !== "course" && isCourseUrl(p.url) ? { ...p, pageType: "course" } : p
+  );
+  if (updated.some((p, i) => p !== pages[i])) {
+    await chrome.storage.sync.set({ [SAVED_KEY]: updated });
+  }
 }
 
 // Does an http(s) URL fall under a blocked entry? Matches the bare domain and
@@ -124,6 +149,7 @@ chrome.runtime.onInstalled.addListener(async () => {
       await chrome.storage.sync.set({ [STORAGE_KEY]: entries });
     }
     await syncRules(entries);
+    await migrateSavedPageTypes();
     if (entries.length > 0) {
       const { clearHistory = true } = await chrome.storage.sync.get("clearHistory");
       if (clearHistory) {
@@ -156,5 +182,5 @@ chrome.storage.onChanged.addListener((changes, area) => {
 });
 
 if (typeof module !== "undefined") {
-  module.exports = { buildUrlFilter, syncRules, migrate, clearHistoryForSite, urlMatchesSite, enforceBlockOnTab };
+  module.exports = { buildUrlFilter, syncRules, migrate, clearHistoryForSite, urlMatchesSite, enforceBlockOnTab, isCourseUrl, migrateSavedPageTypes };
 }

@@ -1,10 +1,10 @@
 const flushPromises = () => new Promise((r) => setImmediate(r));
 
-let buildUrlFilter, syncRules, migrate, clearHistoryForSite, urlMatchesSite, enforceBlockOnTab;
+let buildUrlFilter, syncRules, migrate, clearHistoryForSite, urlMatchesSite, enforceBlockOnTab, isCourseUrl, migrateSavedPageTypes;
 
 beforeEach(() => {
   jest.resetModules();
-  ({ buildUrlFilter, syncRules, migrate, clearHistoryForSite, urlMatchesSite, enforceBlockOnTab } =
+  ({ buildUrlFilter, syncRules, migrate, clearHistoryForSite, urlMatchesSite, enforceBlockOnTab, isCourseUrl, migrateSavedPageTypes } =
     require('../service_worker'));
 });
 
@@ -359,6 +359,86 @@ describe('storage.onChanged history clearing', () => {
     await flushPromises();
 
     expect(chrome.history.search).not.toHaveBeenCalled();
+  });
+});
+
+// ─── isCourseUrl ──────────────────────────────────────────────────────────────
+
+describe('isCourseUrl', () => {
+  test.each([
+    ['https://www.coursera.org/learn/machine-learning'],
+    ['https://www.udemy.com/course/python-bootcamp/'],
+    ['https://www.edx.org/course/intro-to-cs'],
+    ['https://www.edx.org/learn/python'],
+    ['https://www.khanacademy.org/math/algebra/unit/linear-equations/lesson/intro'],
+    ['https://www.skillshare.com/en/classes/python/123'],
+    ['https://brilliant.org/courses/calculus/'],
+    ['https://www.pluralsight.com/courses/react'],
+    ['https://www.linkedin.com/learning/python-essential-training'],
+    ['https://university.example.com/course/intro'],
+    ['https://training.example.com/courses/advanced'],
+  ])('returns true for %s', (url) => {
+    expect(isCourseUrl(url)).toBe(true);
+  });
+
+  test.each([
+    ['https://www.coursera.org'],
+    ['https://example.com/blog/golf-course-review'],
+    ['https://example.com/about'],
+    ['https://www.youtube.com/watch?v=abc'],
+  ])('returns false for %s', (url) => {
+    expect(isCourseUrl(url)).toBe(false);
+  });
+});
+
+// ─── migrateSavedPageTypes ────────────────────────────────────────────────────
+
+describe('migrateSavedPageTypes', () => {
+  test('updates pageType to course for matching saved pages', async () => {
+    const pages = [
+      { url: 'https://www.udemy.com/course/python-bootcamp/', pageType: 'article', title: 'Python', savedAt: 1000 },
+      { url: 'https://example.com/about', pageType: 'page', title: 'About', savedAt: 2000 },
+    ];
+    chrome.storage.sync.get.mockResolvedValue({ savedPages: pages });
+
+    await migrateSavedPageTypes();
+
+    expect(chrome.storage.sync.set).toHaveBeenCalledWith({
+      savedPages: [
+        { url: 'https://www.udemy.com/course/python-bootcamp/', pageType: 'course', title: 'Python', savedAt: 1000 },
+        { url: 'https://example.com/about', pageType: 'page', title: 'About', savedAt: 2000 },
+      ],
+    });
+  });
+
+  test('skips write when no pages need updating', async () => {
+    const pages = [
+      { url: 'https://example.com/about', pageType: 'page', title: 'About', savedAt: 1000 },
+    ];
+    chrome.storage.sync.get.mockResolvedValue({ savedPages: pages });
+
+    await migrateSavedPageTypes();
+
+    expect(chrome.storage.sync.set).not.toHaveBeenCalled();
+  });
+
+  test('does not overwrite a page already typed as course', async () => {
+    const pages = [
+      { url: 'https://www.udemy.com/course/python/', pageType: 'course', title: 'Python', savedAt: 1000 },
+    ];
+    chrome.storage.sync.get.mockResolvedValue({ savedPages: pages });
+
+    await migrateSavedPageTypes();
+
+    expect(chrome.storage.sync.set).not.toHaveBeenCalled();
+  });
+
+  test('handles empty savedPages gracefully', async () => {
+    chrome.storage.sync.get.mockResolvedValue({});
+
+    await migrateSavedPageTypes();
+
+    expect(chrome.storage.sync.set).not.toHaveBeenCalled();
   });
 });
 
