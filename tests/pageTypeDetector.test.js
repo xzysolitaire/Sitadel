@@ -161,6 +161,70 @@ describe('detectPageType — paper', () => {
   });
 });
 
+// ─── Course detection ─────────────────────────────────────────────────────────
+
+describe('detectPageType — course (platforms)', () => {
+  test('detects Coursera learn URL', () => {
+    expect(detectPageType('https://www.coursera.org/learn/machine-learning', emptyDoc())).toBe('course');
+  });
+
+  test('detects Coursera specialization URL', () => {
+    expect(detectPageType('https://www.coursera.org/specializations/deep-learning', emptyDoc())).toBe('course');
+  });
+
+  test('detects Coursera professional certificate URL', () => {
+    expect(detectPageType('https://www.coursera.org/professional-certificates/google-data-analytics', emptyDoc())).toBe('course');
+  });
+
+  test('detects Udemy course URL', () => {
+    expect(detectPageType('https://www.udemy.com/course/python-bootcamp/', emptyDoc())).toBe('course');
+  });
+
+  test('detects edX course URL', () => {
+    expect(detectPageType('https://www.edx.org/course/introduction-to-computer-science', emptyDoc())).toBe('course');
+  });
+
+  test('detects edX learn URL', () => {
+    expect(detectPageType('https://www.edx.org/learn/python', emptyDoc())).toBe('course');
+  });
+
+  test('detects Khan Academy lesson URL', () => {
+    expect(detectPageType('https://www.khanacademy.org/math/algebra/unit/linear-equations/lesson/intro', emptyDoc())).toBe('course');
+  });
+
+  test('detects Skillshare class URL', () => {
+    expect(detectPageType('https://www.skillshare.com/en/classes/python-for-beginners/123456789', emptyDoc())).toBe('course');
+  });
+
+  test('detects Brilliant course URL', () => {
+    expect(detectPageType('https://brilliant.org/courses/calculus/', emptyDoc())).toBe('course');
+  });
+
+  test('detects Pluralsight course URL', () => {
+    expect(detectPageType('https://www.pluralsight.com/courses/react-fundamentals', emptyDoc())).toBe('course');
+  });
+
+  test('detects LinkedIn Learning URL', () => {
+    expect(detectPageType('https://www.linkedin.com/learning/python-essential-training', emptyDoc())).toBe('course');
+  });
+
+  test('detects generic /course/ path on unlisted platform', () => {
+    expect(detectPageType('https://university.example.com/course/intro-to-cs', emptyDoc())).toBe('course');
+  });
+
+  test('detects generic /courses/ path on unlisted platform', () => {
+    expect(detectPageType('https://training.example.com/courses/advanced-python', emptyDoc())).toBe('course');
+  });
+
+  test('does not match Coursera homepage (no learn/specializations path)', () => {
+    expect(detectPageType('https://www.coursera.org', emptyDoc())).toBe('page');
+  });
+
+  test('does not false-positive on unrelated "course" in a blog path', () => {
+    expect(detectPageType('https://example.com/blog/golf-course-review', emptyDoc())).toBe('page');
+  });
+});
+
 // ─── Docs detection ───────────────────────────────────────────────────────────
 
 describe('detectPageType — docs', () => {
